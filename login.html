@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion — GED Notaire</title>
+<meta name="description" content="Authentification GED Notaire — connexion, inscription et récupération de mot de passe.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/auth.css">
+<link rel="stylesheet" href="assets/auth-flow.css">
+</head>
+<body>
+
+<div aria-live="polite" class="sr-only" id="authLive" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"></div>
+
+<!-- ============ TRANSITION D'ACCÈS (jouée après connexion/inscription réussie) ============ -->
+<div class="intro-transition" id="introTransition" aria-hidden="true">
+  <div class="intro-media">
+    <video id="introVideo" muted playsinline preload="auto">
+      <source src="assets/video/intro-transition.mp4" type="video/mp4">
+    </video>
+  </div>
+  <div class="intro-caption">
+    <span class="intro-spin"></span>
+    Préparation de votre espace…
+  </div>
+</div>
+
+<!-- ============ SKELETON ============ -->
+<div class="auth-skeleton" id="authSkeleton" aria-hidden="true">
+  <div class="sk-side">
+    <div class="sk-block sk-mark"></div>
+    <div class="sk-block sk-line w-40" style="margin-top:6px"></div>
+    <div class="sk-illu sk-block"></div>
+    <div class="sk-block sk-line w-90" style="height:20px;margin-top:20px"></div>
+    <div class="sk-block sk-para"></div>
+    <div class="sk-block sk-para w-90"></div>
+  </div>
+  <div class="sk-main">
+    <div class="sk-box">
+      <div class="sk-block sk-line w-40"></div>
+      <div class="sk-block sk-line w-90" style="height:22px"></div>
+      <div class="sk-block sk-field" style="margin-top:10px"></div>
+      <div class="sk-block sk-field"></div>
+      <div class="sk-block sk-btn"></div>
+      <div class="sk-block sk-btn" style="opacity:.6"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SCÈNE PRINCIPALE ============ -->
+<div class="auth-stage" id="authStage">
+
+  <!-- ---------- Panneau illustration ---------- -->
+  <aside class="illu-panel" aria-hidden="true">
+
+    <div class="illu-badge-top">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+      GED Notaire
+    </div>
+
+    <div class="illu-card">
+
+      <div class="illu-media">
+        <div class="illu-media-inner">
+          <div class="illu-glow"></div>
+          <img id="illuImage" src="assets/img/ILLUSTRATION_CONNEXION.png" data-fallback="assets/img/ILLUSTRATION_CONNEXION.svg" onerror="this.onerror=null;this.src=this.dataset.fallback" alt="" />
+          <div class="illu-badge" id="illuBadge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="illu-text">
+        <h1 id="illuTitle">Un espace sécurisé pour chaque rôle de votre étude.</h1>
+        <p id="illuSub">Archivage, indexation, permissions et traçabilité — chaque profil accède uniquement à ce qui relève de son périmètre.</p>
+      </div>
+
+      <div class="illu-foot">© 2026 GED Notaire — Étude dématérialisée</div>
+    </div>
+  </aside>
+
+  <!-- ---------- Panneau formulaire ---------- -->
+  <main class="form-panel">
+    <div class="form-top">
+      <div class="switch-chip" id="switchChip">
+        <span id="switchChipText">Pas encore de compte ?</span>
+        <a href="#" class="sc-btn" id="switchChipBtn" data-go="reg-role">S'inscrire</a>
+      </div>
+    </div>
+    <div class="auth-box" id="authBox">
+
+      <!-- ===================================================
+           ÉTAPE : CONNEXION
+           =================================================== -->
+      <section class="step active" data-step="login">
+        <div class="auth-box-head">
+          <div class="eyebrow">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Accès sécurisé
+          </div>
+          <h2>Bienvenue</h2>
+          <p>Connectez-vous pour accéder à votre espace documentaire.</p>
+        </div>
+
+        <div class="social-row">
+          <button type="button" class="btn-social" data-oauth="Google">
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.4C29.6 35.4 26.9 36.3 24 36.3c-5.3 0-9.7-3.4-11.3-8.1l-6.7 5.1C9.6 39.5 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l6.6 5.4C41.5 35.6 44 30.2 44 24c0-1.2-.1-2.4-.4-3.5z"/></svg>
+            Google
+          </button>
+          <button type="button" class="btn-social" data-oauth="Apple">
+            <svg width="16" height="18" viewBox="0 0 384 512" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C60.6 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>
+            Continuer avec Apple
+          </button>
+        </div>
+
+        <div class="divider">OU</div>
+
+        <form id="loginForm" novalidate>
+          <div class="field-group">
+            <div class="field" id="f-loginEmail">
+              <label for="loginEmail">Adresse e-mail</label>
+              <div class="inp-wrap">
+                <input class="inp" type="email" id="loginEmail" name="email" placeholder="vous@etude-notariale.ci" autocomplete="username" required>
+              </div>
+              <div class="err-msg">Adresse e-mail invalide.</div>
+            </div>
+
+            <div class="field" id="f-loginPassword">
+              <label for="loginPassword">Mot de passe</label>
+              <div class="inp-wrap">
+                <input class="inp" type="password" id="loginPassword" name="password" placeholder="••••••••" autocomplete="current-password" required style="padding-right:42px">
+                <button type="button" class="toggle-eye" data-target="loginPassword" aria-label="Afficher le mot de passe">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <div class="err-msg">Mot de passe trop court.</div>
+            </div>
+          </div>
+
+          <div class="row-between">
+            <label><input type="checkbox" id="remember" checked> Se souvenir de moi</label>
+            <a class="link-accent" href="#" data-go="forgot-email">Mot de passe oublié ?</a>
+          </div>
+
+          <button type="submit" class="btn pri" id="loginSubmit">
+            <span class="spin"></span>
+            <span class="btn-label">Se connecter</span>
+          </button>
+        </form>
+
+        <div class="demo-note">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>Mode démo (front-end) : n'importe quel e-mail/mot de passe valides vous connectent. Le rôle est déduit de l'e-mail (« admin », « clerc », sinon collaborateur). Branchez le backend dans <code>assets/auth-config.js</code>.</span>
+        </div>
+      </section>
+
+      <!-- ===================================================
+           INSCRIPTION — ÉTAPE 1 : TYPE DE COMPTE
+           =================================================== -->
+      <section class="step" data-step="reg-role">
+        <button type="button" class="step-back" data-go="login">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Retour à la connexion
+        </button>
+
+        <div class="progress-wrap" data-progress-for="register">
+          <div class="progress-label"><span class="progress-count">Étape <b>1</b> sur 4</span><span>Type de compte</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:25%"></div></div>
+        </div>
+
+        <div class="auth-box-head">
+          <h2>Quel type de compte souhaitez-vous créer ?</h2>
+          <p>Le compte Notaire · Administrateur est créé automatiquement à l'ouverture de l'étude, il n'est pas accessible par inscription publique.<br>Le rôle final reste validé par votre étude. Déjà un compte ? <a class="link-accent" href="#" data-go="login">Se connecter</a></p>
+        </div>
+
+        <div class="role-cards" id="regRoleCards" role="radiogroup" aria-label="Type de compte">
+          <div class="role-card" data-role="clerc" role="radio" aria-checked="false" tabindex="0">
+            <div class="rc-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+            <div class="rc-body">
+              <div class="rc-title">Clerc principal</div>
+              <div class="rc-desc">Gestion des dossiers, scan des actes, demandes d'accès.</div>
+            </div>
+            <div class="rc-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          </div>
+          <div class="role-card" data-role="collaborateur" role="radio" aria-checked="false" tabindex="0">
+            <div class="rc-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg></div>
+            <div class="rc-body">
+              <div class="rc-title">Collaborateur</div>
+              <div class="rc-desc">Consultation et recherche documentaire selon vos autorisations.</div>
+            </div>
+            <div class="rc-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+          </div>
+        </div>
+
+        <div class="field" id="f-invite" style="display:none;margin-top:16px">
+          <label for="inviteCode">Code d'invitation</label>
+          <div class="inp-wrap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input class="inp" type="text" id="inviteCode" name="inviteCode" placeholder="Fourni par votre étude" autocomplete="off">
+          </div>
+          <div class="err-msg">Code d'invitation invalide.</div>
+        </div>
+
+        <div class="invite-note">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>Le rôle n'est jamais attribué automatiquement : chaque code d'invitation est vérifié et validé côté serveur avant la création du compte.</span>
+        </div>
+
+        <button type="button" class="btn pri" id="regRoleContinue" disabled style="margin-top:14px">
+          <span class="spin"></span>
+          <span class="btn-label">Continuer</span>
+        </button>
+      </section>
+
+      <!-- ===================================================
+           INSCRIPTION — ÉTAPE 2 : INFORMATIONS PERSONNELLES
+           =================================================== -->
+      <section class="step" data-step="reg-personal">
+        <button type="button" class="step-back" data-go="reg-role">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Retour
+        </button>
+
+        <div class="progress-wrap" data-progress-for="register">
+          <div class="progress-label"><span class="progress-count">Étape <b>2</b> sur 4</span><span>Vos informations</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:50%"></div></div>
+        </div>
+
+        <div class="auth-box-head">
+          <h2>Parlez-nous de vous</h2>
+          <p>Ces informations figureront sur votre profil au sein de l'étude.</p>
+        </div>
+
+        <form id="regPersonalForm" novalidate>
+          <div class="field-group">
+            <div class="two">
+              <div class="field" id="f-firstName">
+                <label for="firstName">Prénom</label>
+                <input class="inp" type="text" id="firstName" name="firstName" autocomplete="given-name" required>
+                <div class="err-msg">Prénom requis.</div>
+              </div>
+              <div class="field" id="f-lastName">
+                <label for="lastName">Nom</label>
+                <input class="inp" type="text" id="lastName" name="lastName" autocomplete="family-name" required>
+                <div class="err-msg">Nom requis.</div>
+              </div>
+            </div>
+
+            <div class="two">
+              <div class="field" id="f-phone">
+                <label for="phone">Téléphone</label>
+                <input class="inp" type="tel" id="phone" name="phone" placeholder="+225 07 00 00 00 00" autocomplete="tel" required>
+                <div class="err-msg">Numéro de téléphone invalide.</div>
+              </div>
+              <div class="field" id="f-regEmail">
+                <label for="regEmail">E-mail professionnel</label>
+                <input class="inp" type="email" id="regEmail" name="regEmail" placeholder="vous@etude-notariale.ci" autocomplete="email" required>
+                <div class="err-msg">Adresse e-mail invalide.</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="jobTitle">Fonction / poste</label>
+              <input class="inp" type="text" id="jobTitle" name="jobTitle" placeholder="Ex. Clerc principal, Assistant juridique…" autocomplete="organization-title">
+            </div>
+          </div>
+
+          <button type="submit" class="btn pri">
+            <span class="btn-label">Continuer</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- ===================================================
+           INSCRIPTION — ÉTAPE 3 : SÉCURITÉ DU COMPTE
+           =================================================== -->
+      <section class="step" data-step="reg-password">
+        <button type="button" class="step-back" data-go="reg-personal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Retour
+        </button>
+
+        <div class="progress-wrap" data-progress-for="register">
+          <div class="progress-label"><span class="progress-count">Étape <b>3</b> sur 4</span><span>Sécurité</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:75%"></div></div>
+        </div>
+
+        <div class="auth-box-head">
+          <h2>Protégez votre compte</h2>
+          <p>Choisissez un mot de passe robuste, unique à cette étude.</p>
+        </div>
+
+        <form id="regPasswordForm" novalidate>
+          <div class="field-group">
+            <div class="two">
+              <div class="field" id="f-regPassword">
+                <label for="regPassword">Mot de passe</label>
+                <div class="inp-wrap">
+                  <input class="inp" type="password" id="regPassword" name="regPassword" placeholder="••••••••" autocomplete="new-password" required style="padding-right:42px">
+                  <button type="button" class="toggle-eye" data-target="regPassword" aria-label="Afficher le mot de passe">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
+                <div class="err-msg">Respectez au minimum les règles ci-dessous.</div>
+              </div>
+
+              <div class="field" id="f-regPassword2">
+                <label for="regPassword2">Confirmer</label>
+                <input class="inp" type="password" id="regPassword2" name="regPassword2" placeholder="••••••••" autocomplete="new-password" required>
+                <div class="err-msg">Ne correspond pas.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pw-strength" id="regPwStrength" data-level="0">
+            <div class="pw-bars"><i></i><i></i><i></i><i></i></div>
+            <div class="pw-strength-label">Saisissez un mot de passe</div>
+          </div>
+
+          <ul class="pw-rules" id="regPwRules">
+            <li data-rule="len"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>8 caractères minimum</li>
+            <li data-rule="upper"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Une majuscule</li>
+            <li data-rule="lower"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Une minuscule</li>
+            <li data-rule="digit"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Un chiffre</li>
+            <li data-rule="special"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Un caractère spécial</li>
+          </ul>
+
+          <button type="submit" class="btn pri" id="regPasswordSubmit">
+            <span class="spin"></span>
+            <span class="btn-label">Continuer</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- ===================================================
+           INSCRIPTION — ÉTAPE 4 : VÉRIFICATION EMAIL
+           =================================================== -->
+      <section class="step" data-step="reg-verify">
+        <div class="progress-wrap" data-progress-for="register">
+          <div class="progress-label"><span class="progress-count">Étape <b>4</b> sur 4</span><span>Vérification</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+        </div>
+
+        <div class="auth-box-head">
+          <h2>Vérifiez votre adresse e-mail</h2>
+          <p>Code envoyé à <b id="regOtpEmailLabel">—</b>.</p>
+        </div>
+
+        <div class="otp-row" id="regOtp">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 1 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 2 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 3 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 4 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 5 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 6 du code">
+        </div>
+
+        <div class="otp-meta">
+          <button type="button" class="otp-resend" id="regOtpResend">Renvoyer le code</button>
+          <span class="otp-timer" id="regOtpTimer"></span>
+        </div>
+
+        <button type="button" class="btn pri" id="regOtpSubmit" disabled>
+          <span class="spin"></span>
+          <span class="btn-label">Vérifier et créer mon compte</span>
+        </button>
+
+        <div class="demo-note">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>Mode démo : tout code à 6 chiffres est accepté, sauf <code>000000</code> (simule un code invalide).</span>
+        </div>
+      </section>
+
+      <!-- ===================================================
+           INSCRIPTION — SUCCÈS
+           =================================================== -->
+      <section class="step" data-step="reg-success">
+        <div class="success-wrap">
+          <div class="success-badge">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <h2>Votre compte a été créé avec succès</h2>
+          <p>Votre demande a été transmise à votre étude. Vous pouvez dès à présent accéder à votre espace.</p>
+          <button type="button" class="btn pri" id="regSuccessGo" style="max-width:280px;margin:0 auto">Accéder à mon espace</button>
+        </div>
+      </section>
+
+      <!-- ===================================================
+           MOT DE PASSE OUBLIÉ — ÉTAPE 1 : EMAIL
+           =================================================== -->
+      <section class="step" data-step="forgot-email">
+        <button type="button" class="step-back" data-go="login">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Retour à la connexion
+        </button>
+
+        <div class="progress-wrap" data-progress-for="forgot">
+          <div class="progress-label"><span class="progress-count">Étape <b>1</b> sur 3</span><span>E-mail</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:33%"></div></div>
+        </div>
+
+        <div class="auth-box-head">
+          <h2>Réinitialiser votre mot de passe</h2>
+          <p>Entrez votre adresse e-mail pour recevoir un code de vérification.</p>
+        </div>
+
+        <form id="forgotEmailForm" novalidate>
+          <div class="field-group">
+            <div class="field" id="f-forgotEmail">
+              <label for="forgotEmail">Adresse e-mail</label>
+              <div class="inp-wrap">
+                <input class="inp" type="email" id="forgotEmail" name="forgotEmail" placeholder="vous@etude-notariale.ci" autocomplete="username" required>
+              </div>
+              <div class="err-msg">Adresse e-mail invalide.</div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn pri" id="forgotEmailSubmit">
+            <span class="spin"></span>
+            <span class="btn-label">Envoyer le code</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- ===================================================
+           MOT DE PASSE OUBLIÉ — ÉTAPE 2 : CODE
+           =================================================== -->
+      <section class="step" data-step="forgot-verify">
+        <button type="button" class="step-back" data-go="forgot-email">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          Retour
+        </button>
+
+        <div class="progress-wrap" data-progress-for="forgot">
+          <div class="progress-label"><span class="progress-count">Étape <b>2</b> sur 3</span><span>Vérification</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:66%"></div></div>
+        </div>
+
+        <div class="auth-box-head">
+          <h2>Vérifiez votre e-mail</h2>
+          <p>Code envoyé à <b id="forgotOtpEmailLabel">—</b>.</p>
+        </div>
+
+        <div class="otp-row" id="forgotOtp">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 1 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 2 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 3 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 4 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 5 du code">
+          <input class="otp-box" inputmode="numeric" maxlength="1" aria-label="Chiffre 6 du code">
+        </div>
+
+        <div class="otp-meta">
+          <button type="button" class="otp-resend" id="forgotOtpResend">Renvoyer le code</button>
+          <span class="otp-timer" id="forgotOtpTimer"></span>
+        </div>
+
+        <button type="button" class="btn pri" id="forgotOtpSubmit" disabled>
+          <span class="spin"></span>
+          <span class="btn-label">Vérifier le code</span>
+        </button>
+      </section>
+
+      <!-- ===================================================
+           MOT DE PASSE OUBLIÉ — ÉTAPE 3 : NOUVEAU MOT DE PASSE
+           =================================================== -->
+      <section class="step" data-step="forgot-password">
+        <div class="progress-wrap" data-progress-for="forgot">
+          <div class="progress-label"><span class="progress-count">Étape <b>3</b> sur 3</span><span>Nouveau mot de passe</span></div>
+          <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+        </div>
+
+        <div class="auth-box-head">
+          <h2>Nouveau mot de passe</h2>
+          <p>Choisissez un mot de passe que vous n'avez encore jamais utilisé.</p>
+        </div>
+
+        <form id="forgotPasswordForm" novalidate>
+          <div class="field-group">
+            <div class="field" id="f-forgotPassword">
+              <label for="forgotPassword">Nouveau mot de passe</label>
+              <div class="inp-wrap">
+                <input class="inp" type="password" id="forgotPassword" name="forgotPassword" placeholder="••••••••" autocomplete="new-password" required style="padding-right:42px">
+                <button type="button" class="toggle-eye" data-target="forgotPassword" aria-label="Afficher le mot de passe">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              <div class="err-msg">Respectez au minimum les règles ci-dessous.</div>
+            </div>
+          </div>
+
+          <div class="pw-strength" id="forgotPwStrength" data-level="0">
+            <div class="pw-bars"><i></i><i></i><i></i><i></i></div>
+            <div class="pw-strength-label">Saisissez un mot de passe</div>
+          </div>
+
+          <ul class="pw-rules" id="forgotPwRules">
+            <li data-rule="len"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>8 caractères minimum</li>
+            <li data-rule="upper"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Une majuscule</li>
+            <li data-rule="lower"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Une minuscule</li>
+            <li data-rule="digit"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Un chiffre</li>
+            <li data-rule="special"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Un caractère spécial</li>
+          </ul>
+
+          <div class="field-group">
+            <div class="field" id="f-forgotPassword2">
+              <label for="forgotPassword2">Confirmer le mot de passe</label>
+              <div class="inp-wrap">
+                <input class="inp" type="password" id="forgotPassword2" name="forgotPassword2" placeholder="••••••••" autocomplete="new-password" required>
+              </div>
+              <div class="err-msg">Les mots de passe ne correspondent pas.</div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn pri" id="forgotPasswordSubmit">
+            <span class="spin"></span>
+            <span class="btn-label">Modifier mon mot de passe</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- ===================================================
+           MOT DE PASSE OUBLIÉ — SUCCÈS
+           =================================================== -->
+      <section class="step" data-step="forgot-success">
+        <div class="success-wrap">
+          <div class="success-badge">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <h2>Votre mot de passe a été modifié</h2>
+          <p>Vous pouvez désormais vous reconnecter avec votre nouveau mot de passe.</p>
+          <button type="button" class="btn pri" data-go="login" style="max-width:280px;margin:0 auto">Retour à la connexion</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script src="assets/auth-config.js"></script>
+<script src="assets/auth-flow.js"></script>
+</body>
+</html>

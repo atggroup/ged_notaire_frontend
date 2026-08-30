@@ -1,0 +1,48 @@
+<svg viewBox="0 0 400 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="foliage2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5B4FAE"/>
+      <stop offset="100%" stop-color="#453B8C"/>
+    </linearGradient>
+  </defs>
+
+  <ellipse cx="205" cy="393" rx="150" ry="16" fill="rgba(15,8,40,.16)"/>
+
+  <!-- floating document board -->
+  <circle cx="300" cy="130" r="70" fill="url(#foliage2)" opacity=".9"/>
+  <rect x="262" y="92" width="76" height="96" rx="10" fill="#F3F1FB"/>
+  <rect x="274" y="110" width="52" height="8" rx="4" fill="#B9AFEA"/>
+  <rect x="274" y="128" width="52" height="8" rx="4" fill="#D9D4F2"/>
+  <rect x="274" y="146" width="34" height="8" rx="4" fill="#D9D4F2"/>
+  <circle cx="316" cy="164" r="10" fill="#3FC79A"/>
+  <path d="M311 164 l4 4 8 -8" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- legs -->
+  <rect x="145" y="300" width="26" height="72" rx="12" fill="#171225"/>
+  <rect x="180" y="300" width="26" height="72" rx="12" fill="#241C3E"/>
+  <ellipse cx="158" cy="376" rx="17" ry="10" fill="#0E0B18"/>
+  <ellipse cx="193" cy="376" rx="17" ry="10" fill="#0E0B18"/>
+
+  <!-- torso -->
+  <path d="M136 230 Q130 200 165 192 Q205 184 218 212 Q226 232 216 305 L128 305 Q120 250 136 230 Z" fill="#4C43A6"/>
+  <path d="M165 192 Q205 184 218 212 Q220 218 218 224 Q192 198 165 202 Z" fill="#39306F" opacity=".5"/>
+
+  <!-- raised waving arm -->
+  <path d="M214 218 Q244 206 252 176 Q256 162 244 158 Q234 158 230 172 Q224 194 202 210 Z" fill="#4C43A6"/>
+  <circle cx="246" cy="160" r="13" fill="#E7B18C"/>
+
+  <!-- other arm resting -->
+  <path d="M136 236 Q112 250 116 282 Q118 296 138 296 L144 280 Q134 262 140 244 Z" fill="#4C43A6"/>
+
+  <!-- head -->
+  <circle cx="172" cy="182" r="34" fill="#E7B18C"/>
+  <path d="M139 178 Q137 140 172 140 Q207 140 205 178 Q205 156 172 156 Q139 156 139 178 Z" fill="#1E1633"/>
+  <circle cx="160" cy="186" r="2.6" fill="#2A2350"/>
+  <circle cx="185" cy="186" r="2.6" fill="#2A2350"/>
+  <path d="M162 200 Q172 207 183 200" stroke="#2A2350" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+
+  <!-- small confetti -->
+  <circle cx="90" cy="120" r="4" fill="#3FC79A"/>
+  <circle cx="60" cy="170" r="3" fill="#D8455B"/>
+  <circle cx="100" cy="220" r="3.5" fill="#E7B18C"/>
+</svg>

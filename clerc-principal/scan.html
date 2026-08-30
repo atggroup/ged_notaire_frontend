@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr" data-theme="clerc">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GED Notaire — Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body data-theme="clerc" data-role="clerc">
+  <div class="app">
+    <div class="rail">
+      <div class="logo"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg></div>
+      <div class="rail-nav"><a class="nav-i" href="index.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/><path d="M9.5 21v-6h5v6"/></svg><span class="tip">Tableau de bord</span></a><a class="nav-i" href="documents.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg><span class="tip">Documents</span></a><a class="nav-i" href="recherche.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span class="tip">Recherche</span></a><a class="nav-i" href="dossiers.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="tip">Dossiers clients</span></a><a class="nav-i active" href="scan.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M16 4h2a2 2 0 0 1 2 2v2"/><path d="M20 16v2a2 2 0 0 1-2 2h-2"/><path d="M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M4 12h16"/></svg><span class="tip">Scanner</span></a><a class="nav-i" href="journal-audit.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l1 2h3v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5h3z"/><path d="M9 11h6"/><path d="M9 15h4"/></svg><span class="tip">Mon activité</span></a></div>
+      <a class="nav-i rail-foot" href="profil.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span class="tip">Profil & déconnexion</span></a>
+    </div>
+    <div class="body">
+      <div class="top">
+      <h1>Scanner</h1>
+      <div class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Rechercher un document, un dossier, une référence…"></div>
+      <a class="bell" href="notifications.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="dot"></span></a>
+      <a class="who" href="profil.html">
+        <span class="av" style="background:var(--blue-soft);color:var(--blue)">AY</span>
+        <span><span class="nm">Adjoua Yao</span><br><span class="rl">Clerc principal</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </a>
+    </div>
+      <div class="wrap">
+        <div class="col" style="width:100%">
+      <div class="card">
+        <div class="sec-h"><h2>Numériser un document</h2></div>
+        <div class="step" style="margin-bottom:18px"><div class="sd">1</div>
+          <div><div class="lt" style="font-size:13px">Choisir la source</div>
+          <div class="seg" style="margin-top:8px"><span class="opt on">Scanner réseau</span><span class="opt">Fichier existant</span><span class="opt">Import en lot</span></div></div></div>
+        <div class="step" style="margin-bottom:18px"><div class="sd">2</div>
+          <div style="flex:1"><div class="lt" style="font-size:13px">Indexer le document</div>
+          <div class="two" style="margin-top:10px">
+            <div class="field"><label>Type d'acte</label><select class="sel"><option>Vente</option><option>Donation</option><option>Succession</option><option>Bail</option><option>Hypothèque</option><option>Mariage</option></select></div>
+            <div class="field"><label>Dossier client</label><input class="inp" placeholder="Rechercher un dossier…"></div>
+          </div>
+          <div class="field"><label>Niveau de confidentialité</label><div class="seg"><span class="opt on">Standard</span><span class="opt">Restreint</span><span class="opt">Confidentiel</span></div></div>
+          </div></div>
+        <div class="step"><div class="sd">3</div>
+          <div><div class="lt" style="font-size:13px">Valider</div>
+          <div class="ls" style="margin-top:4px">Conversion PDF/A automatique, empreinte SHA-256 et référence attribuée à l'archivage.</div>
+          <button class="btn pri lg" style="margin-top:12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Archiver le document</button></div></div>
+      </div>
+      <div class="sec-h"><h2>File d'attente</h2></div>
+      <div class="card" style="padding:8px 4px">
+        <table><thead><tr><th>Fichier</th><th>Source</th><th>Déposé par</th><th>Statut</th><th></th></tr></thead>
+        <tbody>
+        <tr><td class="tname"><span class="fic" style="background:var(--warn-soft);color:#A9740A"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg></span>scan_0142.pdf</td><td>Scanner réseau</td><td>Adjoua Yao</td><td><span class="b warn">À indexer</span></td><td><a class="iconbtn" style="width:34px;height:34px" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/></svg></a></td></tr>
+        <tr><td class="tname"><span class="fic" style="background:var(--warn-soft);color:#A9740A"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg></span>scan_0143.pdf</td><td>Scanner réseau</td><td>Adjoua Yao</td><td><span class="b warn">À indexer</span></td><td><a class="iconbtn" style="width:34px;height:34px" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/></svg></a></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+      </div>
+    </div>
+  </div>
+  <script src="assets/config.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

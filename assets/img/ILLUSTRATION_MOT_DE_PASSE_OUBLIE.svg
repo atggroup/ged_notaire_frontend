@@ -1,0 +1,26 @@
+<svg viewBox="0 0 400 420" xmlns="http://www.w3.org/2000/svg">
+  <ellipse cx="200" cy="393" rx="150" ry="16" fill="rgba(15,8,40,.16)"/>
+
+  <!-- big shield -->
+  <path d="M200 60 L300 96 Q300 210 200 268 Q100 210 100 96 Z" fill="#4C43A6"/>
+  <path d="M200 60 L300 96 Q300 130 296 158 L200 130 Z" fill="#5B4FAE" opacity=".6"/>
+
+  <!-- lock body -->
+  <rect x="164" y="150" width="72" height="60" rx="12" fill="#F3F1FB"/>
+  <path d="M178 150 v-18 a22 22 0 0 1 44 0 v18" stroke="#F3F1FB" stroke-width="12" fill="none"/>
+  <circle cx="200" cy="176" r="9" fill="#4C43A6"/>
+  <rect x="196" y="180" width="8" height="18" rx="4" fill="#4C43A6"/>
+
+  <!-- envelope with code -->
+  <rect x="80" y="270" width="120" height="82" rx="12" fill="#F3F1FB"/>
+  <path d="M80 278 L140 320 L200 278" stroke="#B9AFEA" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="98" y="332" width="18" height="12" rx="3" fill="#D8455B"/>
+  <rect x="122" y="332" width="18" height="12" rx="3" fill="#D8455B"/>
+  <rect x="146" y="332" width="18" height="12" rx="3" fill="#D8455B"/>
+  <rect x="170" y="332" width="14" height="12" rx="3" fill="#D8D4F2"/>
+
+  <!-- small stars -->
+  <circle cx="300" cy="250" r="4" fill="#3FC79A"/>
+  <circle cx="320" cy="300" r="3" fill="#E7B18C"/>
+  <circle cx="70" cy="220" r="3.5" fill="#3FC79A"/>
+</svg>

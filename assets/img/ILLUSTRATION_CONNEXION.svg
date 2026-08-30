@@ -1,0 +1,55 @@
+<svg viewBox="0 0 400 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="foliage" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5B4FAE"/>
+      <stop offset="100%" stop-color="#453B8C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ground shadow -->
+  <ellipse cx="205" cy="393" rx="150" ry="16" fill="rgba(15,8,40,.16)"/>
+
+  <!-- tree trunk -->
+  <path d="M298 130 Q292 250 296 388 L318 388 Q316 250 316 130 Z" fill="#1E1633"/>
+  <!-- tree foliage -->
+  <circle cx="305" cy="150" r="98" fill="url(#foliage)"/>
+  <circle cx="255" cy="110" r="46" fill="#6C5FC4" opacity=".55"/>
+  <circle cx="352" cy="185" r="34" fill="#3A3175" opacity=".5"/>
+
+  <!-- birds -->
+  <path d="M70 90 q10 -12 20 0 q10 -12 20 0" stroke="#2A2350" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M110 60 q8 -9 16 0 q8 -9 16 0" stroke="#2A2350" stroke-width="4" fill="none" stroke-linecap="round" opacity=".7"/>
+
+  <!-- backpack -->
+  <rect x="205" y="255" width="58" height="78" rx="18" fill="#7A2E3A"/>
+  <rect x="222" y="240" width="24" height="30" rx="10" fill="#7A2E3A"/>
+  <rect x="222" y="278" width="24" height="10" rx="4" fill="#5C1F29"/>
+
+  <!-- legs (crossed, sitting) -->
+  <path d="M120 330 Q150 360 210 348 Q220 362 205 372 Q140 392 108 358 Q100 342 120 330 Z" fill="#171225"/>
+  <!-- shoes -->
+  <ellipse cx="118" cy="360" rx="18" ry="11" fill="#0E0B18"/>
+  <ellipse cx="200" cy="372" rx="18" ry="11" fill="#0E0B18"/>
+
+  <!-- torso / hoodie -->
+  <path d="M118 235 Q112 190 150 178 Q192 168 210 200 Q222 224 210 258 Q205 300 150 300 Q112 296 112 260 Q108 246 118 235 Z" fill="#4C43A6"/>
+  <!-- hood shading -->
+  <path d="M150 178 Q192 168 210 200 Q214 210 210 220 Q182 190 150 195 Z" fill="#39306F" opacity=".55"/>
+
+  <!-- arms holding book -->
+  <path d="M118 240 Q95 255 96 285 Q97 300 118 300 L128 285 Q118 270 122 250 Z" fill="#4C43A6"/>
+  <path d="M205 240 Q228 255 224 285 Q222 300 200 298 L195 282 Q205 268 200 248 Z" fill="#4C43A6"/>
+
+  <!-- book -->
+  <path d="M108 282 L160 270 L212 282 L212 300 L160 290 L108 300 Z" fill="#E7EAF6"/>
+  <path d="M160 270 L160 290" stroke="#B9C0E0" stroke-width="2"/>
+  <path d="M108 282 L160 270 L160 274 L108 286 Z" fill="#D8455B"/>
+  <path d="M212 282 L160 270 L160 274 L212 286 Z" fill="#D8455B"/>
+
+  <!-- head -->
+  <circle cx="163" cy="172" r="34" fill="#E7B18C"/>
+  <path d="M130 168 Q128 130 163 130 Q198 130 196 168 Q196 148 163 148 Q130 148 130 168 Z" fill="#1E1633"/>
+  <circle cx="150" cy="176" r="2.6" fill="#2A2350"/>
+  <circle cx="176" cy="176" r="2.6" fill="#2A2350"/>
+  <path d="M154 190 Q163 195 172 190" stroke="#2A2350" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+</svg>
