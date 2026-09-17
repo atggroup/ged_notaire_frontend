@@ -37,6 +37,27 @@
 
   var MOCK_LATENCY = 650;
 
+  // Le backend Django REST Framework ne renvoie jamais { message: ... } —
+  // ses erreurs prennent l'une de ces formes :
+  //   { "detail": "Réservé au notaire." }                     (vue classique)
+  //   { "non_field_errors": ["Identifiants invalides."] }      (erreur de validate() globale)
+  //   { "email": ["Un compte existe déjà."] }                  (erreur de champ)
+  // Sans cette fonction, aucun de ces messages n'était jamais lu : l'utilisateur
+  // ne voyait qu'un opaque "Erreur serveur (400)." même quand l'API avait déjà
+  // calculé le bon message ("Identifiants invalides.", "Ce type de compte n'est
+  // pas disponible à l'inscription publique.", etc.).
+  function extractErrorMessage(json, status) {
+    if (!json || typeof json !== "object") return "Erreur serveur (" + status + ").";
+    if (typeof json.detail === "string") return json.detail;
+    if (Array.isArray(json.non_field_errors) && json.non_field_errors.length) return json.non_field_errors[0];
+    for (var key in json) {
+      if (Object.prototype.hasOwnProperty.call(json, key) && Array.isArray(json[key]) && json[key].length) {
+        return json[key][0];
+      }
+    }
+    return "Erreur serveur (" + status + ").";
+  }
+
   // Appel API générique. En mode démo (useMock:true), simule le réseau et
   // les réponses. Basculez cfg.useMock=false + cfg.apiBase pour brancher
   // le vrai backend : le contrat de chaque endpoint est décrit dans
@@ -58,7 +79,7 @@
     }).then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (j) {
-          throw new Error(j.message || "Erreur serveur (" + res.status + ").");
+          throw new Error(extractErrorMessage(j, res.status));
         });
       }
       return res.json();
@@ -72,12 +93,6 @@
         if (body.password.length < 6) throw new Error("Identifiants invalides.");
         var role = deriveMockRole(body.email);
         return { token: "mock-" + btoa(body.email).slice(0, 16) + "-" + Date.now(), role: role, name: deriveName(body.email), email: body.email };
-
-      case EP.registerCheckInvite:
-        if ((cfg.inviteRequired || {})[body.role] && (!body.inviteCode || body.inviteCode.trim().length < 4)) {
-          throw new Error("Code d'invitation invalide ou incomplet.");
-        }
-        return { valid: true, organizationName: "Étude notariale — Cabinet Abidjan" };
 
       case EP.registerStart:
         return { ok: true, pendingEmail: body.email };
@@ -183,10 +198,16 @@
       sub: "Archivage, indexation, permissions et traçabilité — chaque profil accède uniquement à ce qui relève de son périmètre.",
       pageTitle: "Connexion — GED Notaire"
     },
+    "login-verify": {
+      illu: "login", badge: false, chip: CHIP_LOGIN, layout: "left",
+      title: "Un espace sécurisé pour chaque rôle de votre étude.",
+      sub: "Archivage, indexation, permissions et traçabilité — chaque profil accède uniquement à ce qui relève de son périmètre.",
+      pageTitle: "Vérification — GED Notaire"
+    },
     "reg-role": {
       illu: "register", badge: false, chip: CHIP_REGISTER, layout: "right",
       title: "Rejoignez l'espace numérique de votre étude.",
-      sub: "Clerc ou Collaborateur — le compte Notaire · Administrateur existe déjà et n'est pas créé par ce formulaire.",
+      sub: "Le compte Collaborateur est accessible ici. Les comptes Clerc principal et Notaire · Administrateur sont créés par le notaire.",
       progress: { group: "register", index: 1, total: 4 }, pageTitle: "Créer un compte — GED Notaire"
     },
     "reg-personal": {
@@ -241,7 +262,7 @@
 
   var current = null;
   var currentLayout = null;
-  var selectedRole = null; // 'admin' | 'clerc' | 'collaborateur'
+  var selectedRole = null; // public registration only allows 'collaborateur'
   var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ---------- Permutation animée illustration <-> formulaire (FLIP) ----------
@@ -406,7 +427,56 @@
 
   var initialParams = new URLSearchParams(window.location.search);
   var initialGo = initialParams.get("go");
+  var pendingGoogleTicket = initialParams.get("googleTicket");
+  var incomingOauthTicket = initialParams.get("oauthTicket");
+  var incomingOauthError = initialParams.get("oauthError");
+
   goTo(initialGo && META[initialGo] ? initialGo : "login");
+
+  /* =========================================================
+     Retour du flux "Continuer avec Google"
+     ========================================================= */
+  // On efface tout de suite le jeton/le code d'erreur de l'URL : jamais de
+  // trace dans l'historique du navigateur ni dans un lien copié/partagé.
+  if (incomingOauthTicket || incomingOauthError || pendingGoogleTicket || initialGo) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
+  if (incomingOauthTicket) {
+    // Identité Google déjà connue (compte existant ou nouveau compte créé
+    // directement avec le rôle choisi) : on échange le jeton à usage unique
+    // contre une vraie session et on part directement vers le tableau de bord.
+    api(EP.oauthGoogleConsume, { ticket: incomingOauthTicket }).then(function (res) {
+      saveSession({ token: res.token, role: res.role, name: res.name, email: res.email, ts: Date.now() });
+      var dest = (cfg.roleRoutes || {})[res.role] || (cfg.roleRoutes || {}).collaborateur;
+      playIntroTransition(dest);
+    }).catch(function () {
+      toast("Votre session Google a expiré. Merci de recommencer la connexion.", "err");
+    });
+  }
+
+  if (incomingOauthError) {
+    var OAUTH_ERROR_MESSAGES = {
+      access_denied: "Connexion Google annulée.",
+      missing_code: "La connexion Google a échoué. Merci de réessayer.",
+      invalid_state: "La connexion Google a expiré. Merci de réessayer.",
+      google_exchange_failed: "Google n'a pas pu confirmer votre identité. Merci de réessayer.",
+      email_not_verified: "Votre adresse Google doit être vérifiée pour continuer.",
+      account_disabled: "Ce compte a été désactivé. Contactez votre administrateur."
+    };
+    toast(OAUTH_ERROR_MESSAGES[incomingOauthError] || "La connexion Google a échoué. Merci de réessayer.", "err");
+  }
+
+  if (pendingGoogleTicket) {
+    // Première connexion Google sans compte existant : l'identité est déjà
+    // vérifiée, il ne reste qu'à choisir clerc/collaborateur (jamais de rôle
+    // deviné). Le bouton Google redondant de cette étape est masqué et
+    // remplacé par un bandeau explicatif.
+    var googleBanner = document.getElementById("regRoleGoogleBanner");
+    var googleBtnOnRoleStep = document.getElementById("regRoleGoogleBtn");
+    if (googleBanner) googleBanner.style.display = "flex";
+    if (googleBtnOnRoleStep) googleBtnOnRoleStep.style.display = "none";
+  }
 
   /* =========================================================
      Composant OTP réutilisable
@@ -494,9 +564,8 @@
      Sélection du rôle (inscription)
      ========================================================= */
   var roleCardsWrap = document.getElementById("regRoleCards");
-  var inviteField = document.getElementById("f-invite");
-  var inviteInput = document.getElementById("inviteCode");
   var regRoleContinue = document.getElementById("regRoleContinue");
+  var regRoleGoogleBtn = document.getElementById("regRoleGoogleBtn");
 
   if (roleCardsWrap) {
     roleCardsWrap.querySelectorAll(".role-card").forEach(function (card) {
@@ -508,13 +577,8 @@
         card.setAttribute("aria-checked", "true");
         selectedRole = card.getAttribute("data-role");
         root.setAttribute("data-role-active", selectedRole);
-        var inviteRequired = (cfg.inviteRequired || {})[selectedRole];
-        if (inviteField) {
-          inviteField.style.display = "block";
-          var lbl = inviteField.querySelector("label");
-          if (lbl) lbl.innerHTML = (selectedRole === "admin" ? "Code d'invitation administrateur" : "Code d'invitation de l'étude") + (inviteRequired ? '<span class="req">*</span>' : "");
-        }
         if (regRoleContinue) regRoleContinue.disabled = false;
+        if (regRoleGoogleBtn) regRoleGoogleBtn.disabled = false;
       });
       card.addEventListener("keydown", function (e) {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); card.click(); }
@@ -525,20 +589,30 @@
   if (regRoleContinue) {
     regRoleContinue.addEventListener("click", function () {
       if (!selectedRole) { toast("Sélectionnez le type de compte à créer.", "err"); return; }
-      clearError(inviteField);
-      var code = inviteInput ? inviteInput.value.trim() : "";
-      if ((cfg.inviteRequired || {})[selectedRole] && code.length < 4) {
-        setError(inviteField, "Renseignez un code d'invitation valide (fourni par votre étude).");
+      if (pendingGoogleTicket) {
+        // Identité Google déjà vérifiée : on finalise directement, sans
+        // mot de passe ni code de vérification par e-mail.
+        setLoading(regRoleContinue, true);
+        api(EP.oauthGoogleComplete, { googleTicket: pendingGoogleTicket, role: selectedRole }).then(function (res) {
+          saveSession({ token: res.token, role: res.role, name: res.name, email: res.email, ts: Date.now() });
+          setLoading(regRoleContinue, false);
+          pendingGoogleTicket = null;
+          goTo("reg-success", { keepRole: true });
+        }).catch(function (err) {
+          setLoading(regRoleContinue, false);
+          toast(err.message || "Votre session Google a expiré. Recommencez la connexion avec Google.", "err");
+        });
         return;
       }
-      setLoading(regRoleContinue, true);
-      api(EP.registerCheckInvite, { role: selectedRole, inviteCode: code }).then(function () {
-        setLoading(regRoleContinue, false);
-        goTo("reg-personal", { keepRole: true });
-      }).catch(function (err) {
-        setLoading(regRoleContinue, false);
-        setError(inviteField, err.message);
-      });
+      goTo("reg-personal", { keepRole: true });
+    });
+  }
+
+  if (regRoleGoogleBtn) {
+    regRoleGoogleBtn.addEventListener("click", function () {
+      if (!selectedRole) { toast("Sélectionnez d'abord le type de compte à créer.", "err"); return; }
+      setLoading(regRoleGoogleBtn, true);
+      window.location.href = (cfg.apiBase || "") + EP.oauthGoogleStart + "?role=" + encodeURIComponent(selectedRole);
     });
   }
 
@@ -546,7 +620,39 @@
      Étape 2 — informations personnelles
      ========================================================= */
   var personalForm = document.getElementById("regPersonalForm");
-  var regState = { firstName: "", lastName: "", email: "", phone: "", jobTitle: "", password: "" };
+  var regState = { firstName: "", lastName: "", email: "", phone: "", jobTitle: "", inviteCode: "", password: "" };
+
+  var inviteCodeInput = document.getElementById("inviteCode");
+  var inviteCheckHint = document.getElementById("inviteCheckHint");
+  var inviteCheckTimer;
+  function checkInviteLive() {
+    if (!inviteCodeInput || !inviteCheckHint || !EP.checkInvite) return;
+    var code = inviteCodeInput.value.trim();
+    var email = (document.getElementById("regEmail") || {}).value || "";
+    email = email.trim();
+    if (code.length < 12 || !EMAIL_RE.test(email)) { inviteCheckHint.textContent = ""; inviteCheckHint.className = "hint"; return; }
+    inviteCheckHint.textContent = "Vérification du code…";
+    inviteCheckHint.className = "hint";
+    api(EP.checkInvite, { email: email, role: selectedRole, inviteCode: code }).then(function (res) {
+      if (inviteCodeInput.value.trim() !== code) return; // la personne a déjà changé le champ
+      if (res && res.valid) {
+        inviteCheckHint.textContent = "Code valide — rôle : " + (cfg.roleLabels && cfg.roleLabels[res.role] || res.role);
+        inviteCheckHint.className = "hint ok";
+      } else {
+        inviteCheckHint.textContent = "Ce code ne semble pas valide pour cette adresse e-mail.";
+        inviteCheckHint.className = "hint err";
+      }
+    }).catch(function () {
+      inviteCheckHint.textContent = "Ce code ne semble pas valide pour cette adresse e-mail.";
+      inviteCheckHint.className = "hint err";
+    });
+  }
+  if (inviteCodeInput) {
+    inviteCodeInput.addEventListener("blur", function () { clearTimeout(inviteCheckTimer); checkInviteLive(); });
+    inviteCodeInput.addEventListener("input", function () { clearTimeout(inviteCheckTimer); inviteCheckTimer = setTimeout(checkInviteLive, 600); });
+  }
+  var regEmailInputForInvite = document.getElementById("regEmail");
+  if (regEmailInputForInvite) regEmailInputForInvite.addEventListener("blur", function () { clearTimeout(inviteCheckTimer); checkInviteLive(); });
 
   if (personalForm) {
     personalForm.addEventListener("submit", function (e) {
@@ -555,22 +661,25 @@
       var fLast = document.getElementById("f-lastName");
       var fEmail = document.getElementById("f-regEmail");
       var fPhone = document.getElementById("f-phone");
-      [fFirst, fLast, fEmail, fPhone].forEach(clearError);
+      var fInvite = document.getElementById("f-inviteCode");
+      [fFirst, fLast, fEmail, fPhone, fInvite].forEach(clearError);
 
       var firstName = document.getElementById("firstName").value.trim();
       var lastName = document.getElementById("lastName").value.trim();
       var email = document.getElementById("regEmail").value.trim();
       var phone = document.getElementById("phone").value.trim();
       var jobTitle = document.getElementById("jobTitle").value.trim();
+      var inviteCode = document.getElementById("inviteCode").value.trim();
       var ok = true;
       if (firstName.length < 2) { setError(fFirst, "Prénom requis."); ok = false; }
       if (lastName.length < 2) { setError(fLast, "Nom requis."); ok = false; }
       if (!EMAIL_RE.test(email)) { setError(fEmail, "Adresse e-mail invalide."); ok = false; }
       if (phone.length < 8) { setError(fPhone, "Numéro de téléphone invalide."); ok = false; }
+      if (inviteCode.length < 12) { setError(fInvite, "Code d'invitation requis."); ok = false; }
       if (!ok) return;
 
       regState.firstName = firstName; regState.lastName = lastName;
-      regState.email = email; regState.phone = phone; regState.jobTitle = jobTitle;
+      regState.email = email; regState.phone = phone; regState.jobTitle = jobTitle; regState.inviteCode = inviteCode;
       goTo("reg-password", { keepRole: true });
     });
   }
@@ -601,7 +710,7 @@
       setLoading(btn, true);
       api(EP.registerStart, {
         role: selectedRole, firstName: regState.firstName, lastName: regState.lastName,
-        email: regState.email, phone: regState.phone, jobTitle: regState.jobTitle
+        email: regState.email, phone: regState.phone, jobTitle: regState.jobTitle, inviteCode: regState.inviteCode
       }).then(function () {
         return api(EP.registerSendCode, { email: regState.email });
       }).then(function () {
@@ -702,6 +811,14 @@
 
       setLoading(submitBtn, true);
       api(EP.login, { email: emailInput.value.trim(), password: passInput.value }).then(function (res) {
+        if (res.mfaRequired) {
+          setLoading(submitBtn, false);
+          loginState.email = res.email || emailInput.value.trim();
+          loginState.password = passInput.value;
+          goTo("login-verify");
+          prepLoginOtp();
+          return;
+        }
         saveSession({ token: res.token, role: res.role, name: res.name, email: res.email, ts: Date.now() });
         var dest = (cfg.roleRoutes || {})[res.role] || (cfg.roleRoutes || {}).collaborateur;
         playIntroTransition(dest);
@@ -713,26 +830,74 @@
   }
 
   /* =========================================================
-     Boutons sociaux (login uniquement — cf. cahier des charges §11-12)
+     Connexion — vérification en 2 étapes (MFA)
+     Remplace l'ancien window.prompt() par la même interface de
+     saisie de code (cases à chiffres) que "mot de passe oublié"
+     et l'inscription, pour une expérience cohérente.
      ========================================================= */
-  document.querySelectorAll("[data-oauth]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var provider = btn.getAttribute("data-oauth");
-      setLoading(btn, true);
-      // En production : redirection vers cfg.endpoints.oauthGoogle / oauthApple
-      // (flux OAuth/OIDC géré côté serveur — jamais de token stocké côté client ici).
-      setTimeout(function () {
-        setLoading(btn, false);
-        var accountExists = Math.random() > 0.5;
-        if (accountExists) {
-          var role = "collaborateur";
-          saveSession({ token: "mock-oauth-" + Date.now(), role: role, name: "Compte " + provider, email: "compte@" + provider + ".ci", ts: Date.now() });
-          playIntroTransition((cfg.roleRoutes || {})[role]);
-        } else {
-          toast("Aucun compte " + provider + " trouvé — complétez votre inscription.", "ok");
-          goTo("reg-role");
+  var loginState = { email: "", password: "" };
+  var loginOtpRoot = document.getElementById("loginOtp");
+  var loginOtpCtrl = loginOtpRoot ? setupOtp(loginOtpRoot) : null;
+  var loginOtpSubmit = document.getElementById("loginOtpSubmit");
+  var loginOtpResend = document.getElementById("loginOtpResend");
+  var loginOtpTimer = document.getElementById("loginOtpTimer");
+  var loginOtpEmailLabel = document.getElementById("loginOtpEmailLabel");
+  var loginOtpAttempts = 0;
+
+  function prepLoginOtp() {
+    if (loginOtpEmailLabel) loginOtpEmailLabel.textContent = loginState.email;
+    if (loginOtpCtrl) loginOtpCtrl.reset();
+    loginOtpAttempts = 0;
+    if (loginOtpSubmit) loginOtpSubmit.disabled = true;
+    startResendTimer(loginOtpResend, loginOtpTimer, (cfg.otp || {}).resendCooldownSeconds || 45);
+  }
+  if (loginOtpRoot) {
+    loginOtpRoot.addEventListener("otp:change", function (e) {
+      if (loginOtpSubmit) loginOtpSubmit.disabled = !e.detail.complete;
+    });
+  }
+  if (loginOtpResend) {
+    loginOtpResend.addEventListener("click", function () {
+      api(EP.login, { email: loginState.email, password: loginState.password }).then(function () {
+        toast("Un nouveau code a été envoyé.", "ok");
+        startResendTimer(loginOtpResend, loginOtpTimer, (cfg.otp || {}).resendCooldownSeconds || 45);
+      }).catch(function (err) {
+        toast(err.message || "Impossible de renvoyer le code.", "err");
+      });
+    });
+  }
+  if (loginOtpSubmit) {
+    loginOtpSubmit.addEventListener("click", function () {
+      var code = loginOtpCtrl.value();
+      if (code.length < 6) return;
+      setLoading(loginOtpSubmit, true);
+      api(EP.mfaVerify, { email: loginState.email, code: code }).then(function (res) {
+        setLoading(loginOtpSubmit, false);
+        saveSession({ token: res.token, role: res.role, name: res.name, email: res.email, ts: Date.now() });
+        var dest = (cfg.roleRoutes || {})[res.role] || (cfg.roleRoutes || {}).collaborateur;
+        playIntroTransition(dest);
+      }).catch(function (err) {
+        setLoading(loginOtpSubmit, false);
+        loginOtpAttempts += 1;
+        loginOtpCtrl.markError();
+        toast(err.message || "Code invalide.", "err");
+        if (loginOtpAttempts >= ((cfg.otp || {}).maxAttempts || 5)) {
+          toast("Trop de tentatives. Reconnectez-vous pour recevoir un nouveau code.", "err");
         }
-      }, 900);
+      });
+    });
+  }
+
+  /* =========================================================
+     Bouton social (login) — Google uniquement (gratuit, universel).
+     Vraie redirection pleine page : Google doit pouvoir afficher son
+     propre écran de consentement, un fetch() ne peut pas naviguer le
+     navigateur à la place de l'utilisateur.
+     ========================================================= */
+  document.querySelectorAll('[data-oauth="Google"]').forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      setLoading(btn, true);
+      window.location.href = (cfg.apiBase || "") + EP.oauthGoogleStart;
     });
   });
 

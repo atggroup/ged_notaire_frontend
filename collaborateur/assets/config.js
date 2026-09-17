@@ -1,13 +1,13 @@
 window.GED_CONFIG = {
   apiBase: "/api",
-  useMock: true,
+  useMock: false,
   token: "",
   role: "collaborateur",
   theme: "collaborateur",
   capabilities: {
     documents: true,
     search: true,
-    dossiers: false,
+    dossiers: true,
     createDossier: false,
     scan: false,
     users: false,

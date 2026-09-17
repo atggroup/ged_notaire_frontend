@@ -1,8 +1,8 @@
 window.GED_CONFIG = {
   apiBase: "/api",
-  useMock: true,
+  useMock: false,
   token: "",
-  role: "notaire",
+  role: "admin",
   theme: "notaire",
   capabilities: {
     documents: true,

@@ -1,6 +1,6 @@
 window.GED_CONFIG = {
   apiBase: "/api",
-  useMock: true,
+  useMock: false,
   token: "",
   role: "clerc",
   theme: "clerc",

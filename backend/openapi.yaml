@@ -1,0 +1,448 @@
+openapi: 3.0.3
+info:
+  title: GED Cabinet Notarial API
+  version: 1.0.0
+paths:
+  /api/access-requests:
+    post:
+      operationId: api_access_requests_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/audit/export:
+    get:
+      operationId: api_audit_export_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/forgot-password/reset:
+    post:
+      operationId: api_auth_forgot_password_reset_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/forgot-password/send-code:
+    post:
+      operationId: api_auth_forgot_password_send_code_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/forgot-password/verify-code:
+    post:
+      operationId: api_auth_forgot_password_verify_code_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/login:
+    post:
+      operationId: api_auth_login_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/me:
+    get:
+      operationId: api_auth_me_retrieve
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_auth_me_partial_update
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/oauth/{provider}:
+    get:
+      operationId: api_auth_oauth_retrieve
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      parameters:
+      - in: path
+        name: provider
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/register/check-invite:
+    post:
+      operationId: api_auth_register_check_invite_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/register/complete:
+    post:
+      operationId: api_auth_register_complete_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/register/send-code:
+    post:
+      operationId: api_auth_register_send_code_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/register/start:
+    post:
+      operationId: api_auth_register_start_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/register/verify-code:
+    post:
+      operationId: api_auth_register_verify_code_create
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/backups/restore-test:
+    post:
+      operationId: api_backups_restore_test_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/context/filiale:
+    post:
+      operationId: api_context_filiale_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/documents:
+    get:
+      operationId: api_documents_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: api_documents_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/documents/{reference}:
+    get:
+      operationId: api_documents_retrieve_2
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/documents/{reference}/export:
+    get:
+      operationId: api_documents_export_retrieve
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/documents/{reference}/validate:
+    post:
+      operationId: api_documents_validate_create
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/documents/archive:
+    post:
+      operationId: api_documents_archive_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/documents/favorite:
+    post:
+      operationId: api_documents_favorite_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/documents/queue/{nom}:
+    get:
+      operationId: api_documents_queue_retrieve
+      parameters:
+      - in: path
+        name: nom
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/documents/upload:
+    post:
+      operationId: api_documents_upload_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/dossiers:
+    post:
+      operationId: api_dossiers_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/me:
+    get:
+      operationId: api_me_retrieve
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: api_me_partial_update
+      description: Generic API base so the generated OpenAPI schema includes contract
+        routes.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/read:
+    patch:
+      operationId: api_notifications_read_partial_update
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/permissions:
+    post:
+      operationId: api_permissions_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: api_permissions_destroy
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/search:
+    get:
+      operationId: api_search_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings:
+    put:
+      operationId: api_settings_update
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/users:
+    post:
+      operationId: api_users_create
+      description: Admin-only internal account creation; role is limited to non-admin
+        roles.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+
+
+  /api/backups/run:
+    post:
+      summary: Lancer une sauvegarde complète
+      responses:
+        '200': {description: Sauvegarde créée}
+        '403': {description: Accès refusé}
+  /api/backups/restore-test:
+    post:
+      summary: Tester la restauration de la dernière sauvegarde
+      responses:
+        '200': {description: Test réussi}
+        '409': {description: Test échoué}
+  /api/key-management/status:
+    get:
+      summary: État non secret du trousseau de chiffrement
+  /api/key-management/generate:
+    post:
+      summary: Générer une nouvelle clé de rotation
+  /api/key-management/retire:
+    post:
+      summary: Vérifier le retrait sécurisé d'une clé
+  /api/key-management/recovery-export:
+    post:
+      summary: Exporter un paquet de récupération chiffré
+  /api/key-management/recovery-import:
+    post:
+      summary: Vérifier un paquet de récupération chiffré
+
+
+components:
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

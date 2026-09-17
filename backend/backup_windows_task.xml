@@ -1,0 +1,2 @@
+<!-- Import this task after adjusting the project path and user account. It runs the GED backup every day at 02:00. -->
+<Task version="1.4"><Triggers><CalendarTrigger><StartBoundary>2026-09-05T02:00:00</StartBoundary><ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger></Triggers><Actions Context="Author"><Exec><Command>python</Command><Arguments>manage.py backup_ged</Arguments><WorkingDirectory>C:\chemin\vers\ged\backend</WorkingDirectory></Exec></Actions></Task>

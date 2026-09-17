@@ -1,15 +1,16 @@
 window.GED_AUTH_CONFIG = {
   // Passez useMock à false et renseignez apiBase pour brancher le vrai backend.
   apiBase: "/api",
-  useMock: true,
+  useMock: false,
 
   endpoints: {
     login: "/auth/login",
+    mfaVerify: "/auth/mfa/verify",
     me: "/auth/me",
 
-    // Inscription multistep — le rôle envoyé n'est JAMAIS source de vérité :
-    // le backend doit revalider le code d'invitation et déterminer le rôle réel.
-    registerCheckInvite: "/auth/register/check-invite",   // POST { role, inviteCode } -> { valid, organizationName }
+    // Activation multistep d'une invitation nominative. Le rôle est toujours
+    // contrôlé côté serveur à partir du code d'invitation.
+    checkInvite: "/auth/register/check-invite",             // POST { email, role, inviteCode } -> { valid, role }
     registerStart: "/auth/register/start",                 // POST { role, inviteCode, firstName, lastName, email, phone, jobTitle }
     registerSendCode: "/auth/register/send-code",           // POST { email } -> { expiresInSeconds }
     registerVerifyCode: "/auth/register/verify-code",       // POST { email, code } -> { ok }
@@ -20,17 +21,21 @@ window.GED_AUTH_CONFIG = {
     forgotVerifyCode: "/auth/forgot-password/verify-code",  // POST { email, code } -> { resetToken }
     forgotResetPassword: "/auth/forgot-password/reset",     // POST { resetToken, password } -> { ok }
 
-    // OAuth — le frontend ne fait que déclencher le flux, le backend gère
-    // l'échange de code / vérification d'identité et la création de session.
-    oauthGoogle: "/auth/oauth/google",                      // -> redirection serveur ou popup OAuth
-    oauthApple: "/auth/oauth/apple"
+    // OAuth — le frontend ne fait que déclencher le flux (redirection pleine
+    // page), le backend gère l'échange de code / vérification d'identité et
+    // la création de session. Seul Google est proposé (gratuit, et c'est le
+    // compte que tout le monde a déjà) : pas d'Apple (payant côté
+    // développeur), pas de GitHub (inconnu des études notariales).
+    oauthGoogleStart: "/auth/oauth/google/start",         // navigation (pas fetch) -> redirige vers Google
+    oauthGoogleComplete: "/auth/oauth/google/complete",   // POST { googleTicket, role } -> { token, role, name, email }
+    oauthGoogleConsume: "/auth/oauth/google/consume"      // POST { ticket } -> { token, role, name, email }
   },
 
   // Correspondance rôle -> dossier applicatif
   roleRoutes: {
-    admin: "1-notaire-admin/index.html",
-    clerc: "2-clerc-principal/index.html",
-    collaborateur: "3-collaborateur/index.html"
+    admin: "notaire-admin/index.html",
+    clerc: "clerc-principal/index.html",
+    collaborateur: "collaborateur/index.html"
   },
   roleLabels: {
     admin: "Notaire · Admin",
@@ -38,14 +43,6 @@ window.GED_AUTH_CONFIG = {
     collaborateur: "Collaborateur"
   },
   sessionKey: "ged_session",
-
-  // Politique de code d'invitation (validation stricte côté SERVEUR obligatoire —
-  // ce réglage ne sert qu'à afficher/masquer le champ côté front en mode démo).
-  inviteRequired: {
-    admin: true,
-    clerc: true,
-    collaborateur: true
-  },
 
   otp: {
     length: 6,

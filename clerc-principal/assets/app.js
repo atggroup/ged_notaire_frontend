@@ -12,7 +12,7 @@
 
   /* ---------------- Session / Auth guard ---------------- */
   var SESSION_KEY = "ged_session";
-  var ROLE_LABELS = { notaire: "Notaire \u00b7 Admin", clerc: "Clerc principal", collaborateur: "Collaborateur" };
+  var ROLE_LABELS = { admin: "Notaire \u00b7 Admin", notaire: "Notaire \u00b7 Admin", clerc: "Clerc principal", collaborateur: "Collaborateur" };
 
   function getSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; }
@@ -54,9 +54,10 @@
     document.querySelectorAll("#logoutLink").forEach(function (a) {
       a.addEventListener("click", function (e) {
         e.preventDefault();
-        clearSession();
-        toast("D\u00e9connexion r\u00e9ussie.", "ok");
-        setTimeout(function () { location.href = "../login.html"; }, 350);
+        var headers = cfg.token ? { Authorization: "Bearer " + cfg.token } : {};
+        fetch(cfg.apiBase + "/auth/logout", { method: "POST", credentials: "include", headers: headers })
+          .catch(function () {})
+          .then(function () { clearSession(); toast("Déconnexion de toutes les sessions réussie.", "ok"); setTimeout(function () { location.href = "../login.html"; }, 350); });
       });
     });
   }
@@ -123,14 +124,73 @@
       body: body && method !== "GET" ? JSON.stringify(body) : undefined
     }).then(function (res) {
       if (res.status === 401) throw new Error("Session expirée.");
-      if (res.status === 403) throw new Error("Droits insuffisants.");
-      if (!res.ok) throw new Error("Erreur serveur (" + res.status + ").");
       var ct = res.headers.get("content-type") || "";
-      return ct.indexOf("json") >= 0 ? res.json() : res.text();
+      var parsed = ct.indexOf("json") >= 0 ? res.json().catch(function () { return {}; }) : res.text().then(function (t) { return { detail: t }; });
+      return parsed.then(function (data) {
+        // DRF renvoie { detail: "..." }, { non_field_errors: [...] } ou { champ: [...] } :
+        // sans lire ces clés, le message précis calculé côté serveur (ex. "Un dossier
+        // dédié existe déjà pour ce client.") n'atteignait jamais l'utilisateur.
+        if (!res.ok) {
+          var message = res.status === 403 ? "Droits insuffisants." : "Erreur serveur (" + res.status + ").";
+          if (data && typeof data === "object") {
+            if (typeof data.detail === "string") message = data.detail;
+            else if (Array.isArray(data.non_field_errors) && data.non_field_errors.length) message = data.non_field_errors[0];
+            else {
+              for (var key in data) {
+                if (Object.prototype.hasOwnProperty.call(data, key) && Array.isArray(data[key]) && data[key].length) { message = data[key][0]; break; }
+              }
+            }
+          }
+          throw new Error(message);
+        }
+        return data;
+      });
     }).catch(function (err) {
       toast(err.message || "Échec de la requête.", "err");
       throw err;
     });
+  }
+
+  function apiMultipart(path, formData) {
+    if (cfg.useMock) return Promise.resolve({ reference: "MOCK-0001", nom: "Document de démonstration" });
+    var headers = { Accept: "application/json" };
+    if (cfg.token) headers.Authorization = "Bearer " + cfg.token;
+    return fetch(cfg.apiBase + path, { method: "POST", credentials: "include", headers: headers, body: formData }).then(function (res) {
+      if (res.status === 401) throw new Error("Session expirée.");
+      if (res.status === 403) throw new Error("Droits insuffisants.");
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) throw new Error(data.detail || "Le document n'a pas pu être archivé.");
+        return data;
+      });
+    }).catch(function (err) { toast(err.message || "Échec de l'envoi.", "err"); throw err; });
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>'"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[c]; });
+  }
+  function docDate(value) {
+    if (!value) return "";
+    var d = new Date(value);
+    return isNaN(d) ? "" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  }
+  function docCard(doc) {
+    var level = doc.niveau_de_confidentialite || "Standard";
+    var cls = level === "Confidentiel" ? "n3" : (level === "Restreint" ? "n2" : "n1");
+    return '<div class="doc" data-ref="' + escapeHtml(doc.reference) + '">' +
+      '<div class="thumb" style="background:var(--primary-soft)"><img src="../assets/img/illustration_document.png" alt="Document" style="width:68px;height:68px;object-fit:contain;filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))" /><span class="tag" style="color:var(--primary)">' + escapeHtml(doc.type) + '</span><span class="lvl ' + cls + '" style="position:absolute;bottom:10px;left:10px">' + escapeHtml(level) + '</span></div>' +
+      '<h4>' + escapeHtml(doc.nom) + '</h4><div class="meta">' + escapeHtml(doc.dossierReference || "Sans dossier") + (doc.created_at ? " · " + docDate(doc.created_at) : "") + '</div>' +
+      '<div class="row" style="display:flex;align-items:center;margin-top:12px"><span class="code">' + escapeHtml(doc.reference) + '</span><a class="fav" href="#" aria-label="Favori" style="margin-left:auto;display:inline-flex;align-items:center;justify-content:center">' + (doc.is_favorite ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2.5 15.09 8.76 22 9.77 17 14.64 18.18 21.52 12 18.27 5.82 21.52 7 14.64 2 9.77 8.91 8.76"/></svg>' : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2.5 15.09 8.76 22 9.77 17 14.64 18.18 21.52 12 18.27 5.82 21.52 7 14.64 2 9.77 8.91 8.76"/></svg>') + '</a><a class="open" href="document-detail.html?ref=' + encodeURIComponent(doc.reference) + '" aria-label="Ouvrir le document" style="margin-left:12px;display:inline-flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a></div></div>';
+  }
+  function renderDocuments(items) {
+    var docs = document.querySelector(".docs");
+    if (!docs || !Array.isArray(items)) return;
+    docs.innerHTML = items.length ? items.map(docCard).join("") : '<div class="card" style="grid-column:1/-1;text-align:center"><h3>Aucun document</h3><p class="muted">Aucun document ne correspond à votre recherche.</p></div>';
+    var count = document.querySelector(".sec-h .muted");
+    if (count && /résultat/i.test(count.textContent)) count.textContent = items.length + " résultat" + (items.length > 1 ? "s" : "");
+  }
+  function loadDocuments(path) {
+    if (cfg.useMock) return Promise.resolve();
+    return api("GET", path || "/documents").then(function (items) { renderDocuments(items); return items; });
   }
 
   function collectFields(root) {
@@ -175,7 +235,7 @@
     document.querySelectorAll(".modal-backdrop").forEach(function (n) { n.remove(); });
   }
 
-  function requestAccess(ref) {
+  function requestAccess(ref, onSuccess) {
     if (!can("requestAccess")) return deny("Les demandes d'accès sont réservées au clerc et au collaborateur.");
     openModal({
       title: "Demande d'accès",
@@ -188,6 +248,7 @@
         if (!payload.motif) { toast("Le motif est obligatoire.", "err"); throw new Error("motif"); }
         return api("POST", "/access-requests", payload).then(function () {
           toast("Demande envoyée au notaire.", "ok");
+          if (typeof onSuccess === "function") onSuccess();
         });
       }
     });
@@ -220,6 +281,58 @@
     btn.addEventListener("click", function () { app.classList.toggle("nav-open"); });
     back.addEventListener("click", close);
     document.querySelectorAll(".rail a").forEach(function (a) { a.addEventListener("click", close); });
+
+  /* ----------------------------------------------------------------
+     Info-bulles du menu latéral : en position:fixed (et non plus
+     absolute) pour ne jamais être rognées par le défilement du menu
+     (.rail-nav défile désormais verticalement quand il contient plus
+     d'icônes que la hauteur d'écran ne peut en afficher). La position
+     est donc calculée en JS au survol, par rapport à la fenêtre.
+     ---------------------------------------------------------------- */
+  /* Bouton "Retour" générique : sur les pages de détail (document,
+     dossier), ramène à la page précédente dans l'historique du
+     navigateur. Repli sur le tableau de bord si la page a été ouverte
+     directement (pas d'historique à remonter, ex. lien partagé). */
+  function setupBackButtons() {
+    document.querySelectorAll("[data-go-back]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (window.history.length > 1) window.history.back();
+        else location.href = "index.html";
+      });
+    });
+  }
+
+  function setupNavTooltips() {
+    document.querySelectorAll(".nav-i").forEach(function (item) {
+      var tip = item.querySelector(".tip");
+      if (!tip) return;
+      item.addEventListener("mouseenter", function () {
+        var r = item.getBoundingClientRect();
+        tip.style.top = (r.top + r.height / 2) + "px";
+        tip.style.left = (r.right + 10) + "px";
+        tip.style.transform = "translateY(-50%)";
+      });
+    });
+  }
+
+  /* ---------------- Barre du haut + rail toujours fixes au scroll ---------------- */
+  function setupFixedHeader() {
+    var top = document.querySelector(".top");
+    var body = document.querySelector(".body");
+    if (!top || !body) return;
+    var spacer = document.createElement("div");
+    spacer.className = "top-spacer";
+    top.insertAdjacentElement("afterend", spacer);
+    function sync() {
+      var h = top.offsetHeight;
+      document.documentElement.style.setProperty("--topbar-h", h + "px");
+    }
+    sync();
+    window.addEventListener("resize", sync);
+    window.addEventListener("orientationchange", sync);
+    if (window.ResizeObserver) new ResizeObserver(sync).observe(top);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(sync);
+  }
   }
 
   function setupSearch() {
@@ -231,8 +344,7 @@
         e.preventDefault();
         var value = input.value.trim();
         if (page.indexOf("recherche") === 0) {
-          filterDocs(value);
-          api("GET", "/search?q=" + encodeURIComponent(value));
+          api("GET", "/search?q=" + encodeURIComponent(value)).then(renderDocuments);
         } else {
           location.href = "recherche.html?q=" + encodeURIComponent(value);
         }
@@ -285,8 +397,7 @@
         cat.parentElement.querySelectorAll(".cat").forEach(function (c) { c.classList.remove("on"); });
         cat.classList.add("on");
         var type = (cat.querySelector(".ct") && cat.querySelector(".ct").textContent.trim()) || "Tous";
-        filterDocs("", type);
-        api("GET", "/documents?type=" + encodeURIComponent(type));
+        loadDocuments("/documents?type=" + encodeURIComponent(type));
       });
     });
 
@@ -302,24 +413,15 @@
       });
     }
 
-    document.querySelectorAll(".ask").forEach(function (a) {
-      a.addEventListener("click", function (e) {
-        e.preventDefault();
-        var code = (a.closest(".doc") && a.closest(".doc").querySelector(".code") && a.closest(".doc").querySelector(".code").textContent.trim()) || params.get("ref") || "";
-        requestAccess(code);
-      });
+    var docsHost = document.querySelector(".docs");
+    if (docsHost) docsHost.addEventListener("click", function (e) {
+      var doc = e.target.closest(".doc");
+      if (!doc) return;
+      var ref = doc.getAttribute("data-ref") || (doc.querySelector(".code") || {}).textContent || "";
+      if (e.target.closest(".ask")) { e.preventDefault(); requestAccess(ref); }
+      if (e.target.closest(".fav")) { e.preventDefault(); api("POST", "/documents/favorite", { ref: ref }).then(function () { loadDocuments(page.indexOf("recherche") === 0 ? "/search?q=" + encodeURIComponent(params.get("q") || "") : "/documents"); }); }
     });
-
-    document.querySelectorAll(".doc .fav").forEach(function (fav) {
-      fav.style.cursor = "pointer";
-      fav.addEventListener("click", function (e) {
-        e.preventDefault();
-        var code = fav.closest(".doc") && fav.closest(".doc").querySelector(".code");
-        api("POST", "/documents/favorite", { ref: code ? code.textContent.trim() : "" }).then(function () {
-          toast("Favori mis à jour.", "ok");
-        });
-      });
-    });
+    if (page.indexOf("documents") === 0 && !cfg.useMock) loadDocuments("/documents");
   }
 
   function setupTables() {
@@ -333,64 +435,193 @@
 
   function setupRecherche() {
     if (page.indexOf("recherche") !== 0) return;
+    function runSearch() {
+      var data = collectFields();
+      var q = data.q || data.mot_cle_reference || "";
+      var type = data.type || data.type_d_acte || "";
+      var dossier = data.dossier || data.dossier_client || "";
+      return api("GET", "/search?q=" + encodeURIComponent(q) + "&type=" + encodeURIComponent(type) + "&dossier=" + encodeURIComponent(dossier)).then(function (items) {
+        renderDocuments(items);
+        return items;
+      });
+    }
     var btn = document.querySelector(".btn.pri");
     if (btn) {
       btn.addEventListener("click", function (e) {
         e.preventDefault();
-        var data = collectFields();
-        var q = data.mot_cle_reference || data.q || "";
-        api("GET", "/search?q=" + encodeURIComponent(q) + "&type=" + encodeURIComponent(data.type_d_acte || "")).then(function () {
-          var n = filterDocs(q, data.type_d_acte || "Tous");
-          toast(n + " résultat" + (n > 1 ? "s" : "") + " dans votre périmètre.", "ok");
+        runSearch().then(function (items) {
+          toast(items.length + " résultat" + (items.length > 1 ? "s" : "") + " dans votre périmètre.", "ok");
         });
       });
     }
-    if (params.get("q")) filterDocs(params.get("q"));
+    var queryInput = document.querySelector('[name="q"]');
+    if (params.get("q") && queryInput) queryInput.value = params.get("q");
+    runSearch();
+    function loadSavedSearches() {
+      return api('GET', '/searches/saved').then(function (items) {
+        var host = document.getElementById('savedSearchesList');
+        if (!host) return;
+        if (!Array.isArray(items) || !items.length) { host.innerHTML = '<div class="hint">Aucune recherche sauvegardée.</div>'; return; }
+        host.innerHTML = items.map(function (s) {
+          return '<div class="kv"><span>' + escapeHtml(s.name) + '</span><b><button class="btn" data-run-search="' + s.id + '">Lancer</button> <button class="btn" data-delete-search="' + s.id + '">Supprimer</button></b></div>';
+        }).join('');
+        var byId = {}; items.forEach(function (s) { byId[s.id] = s; });
+        host.querySelectorAll('[data-run-search]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var s = byId[b.getAttribute('data-run-search')]; if (!s) return;
+            var filters = s.filters || {};
+            if (queryInput) queryInput.value = filters.q || '';
+            var typeSel = document.querySelector('[name="type"]'); if (typeSel) typeSel.value = filters.type || '';
+            var dossierInput = document.querySelector('[name="dossier"]'); if (dossierInput) dossierInput.value = filters.dossier || '';
+            runSearch().then(function (results) { toast(results.length + ' résultat' + (results.length > 1 ? 's' : '') + ' dans votre périmètre.', 'ok'); });
+          });
+        });
+        host.querySelectorAll('[data-delete-search]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            if (!confirm('Supprimer cette recherche sauvegardée ?')) return;
+            api('DELETE', '/searches/saved', { id: b.getAttribute('data-delete-search') }).then(function () { toast('Recherche supprimée.', 'ok'); loadSavedSearches(); });
+          });
+        });
+      }).catch(function () {});
+    }
+    var saveSearchBtn = document.getElementById('saveSearchBtn');
+    if (saveSearchBtn) saveSearchBtn.addEventListener('click', function () {
+      openModal({
+        title: 'Sauvegarder cette recherche', ok: 'Enregistrer',
+        bodyHtml: '<div class="field"><label>Nom de la recherche</label><input class="inp" name="searchName" placeholder="Ex. Ventes en cours"></div>',
+        onOk: function (payload) {
+          if (!payload.searchName) { toast('Le nom est obligatoire.', 'err'); throw new Error('name'); }
+          var data = collectFields();
+          var filters = { q: data.q || data.mot_cle_reference || '', type: data.type || data.type_d_acte || '', dossier: data.dossier || data.dossier_client || '' };
+          return api('POST', '/searches/saved', { name: payload.searchName, filters: filters }).then(function () { toast('Recherche sauvegardée.', 'ok'); loadSavedSearches(); });
+        }
+      });
+    });
+    loadSavedSearches();
   }
 
   function setupProfil() {
     if (page.indexOf("profil") !== 0) return;
-    // La déconnexion est gérée par wireLogout() via #logoutLink (session réelle + redirection vers ../login.html).
+    function setProfile(profile) {
+      if (!profile) return;
+      applySessionIdentity(profile);
+      document.querySelectorAll("[data-profile-name]").forEach(function (el) { el.textContent = profile.name || ""; });
+      document.querySelectorAll("[data-profile-role]").forEach(function (el) { el.textContent = (ROLE_LABELS[profile.role] || cfg.role) + " · Cabinet Notarial"; });
+      document.querySelectorAll("[data-profile-avatar]").forEach(function (el) { el.textContent = initials(profile.name); });
+      var nameInput = document.querySelector('[name="name"]');
+      var emailInput = document.querySelector('[name="email"]');
+      if (nameInput) nameInput.value = profile.name || "";
+      if (emailInput) emailInput.value = profile.email || "";
+      var current = getSession() || {};
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify(Object.assign({}, current, { name: profile.name || current.name, email: profile.email || current.email, role: profile.role || current.role }))); } catch (e) {}
+    }
+    api("GET", "/me").then(setProfile);
     var saveTimer;
-    document.querySelectorAll(".inp").forEach(function (inp) {
+    document.querySelectorAll('[name="name"]').forEach(function (inp) {
       inp.addEventListener("change", function () {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(function () {
-          api("PATCH", "/me", collectFields()).then(function () { toast("Profil mis à jour.", "ok"); });
+          api("PATCH", "/me", { name: inp.value.trim() }).then(function (profile) { setProfile(profile); toast("Profil mis à jour.", "ok"); });
         }, 200);
       });
     });
   }
 
+  var QUEUE_STATUS_LABEL = { "brouillon": "Brouillon", "en_attente_validation": "À valider" };
+  function queueRow(doc) {
+    var label = QUEUE_STATUS_LABEL[doc.statut] || doc.statut || "À indexer";
+    return '<tr data-ref="' + escapeHtml(doc.reference) + '"><td class="tname"><span class="fic" style="background:var(--warn-soft);color:#A9740A"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg></span>' + escapeHtml(doc.nom) + '</td><td>Import</td><td>' + escapeHtml(doc.uploadedByName || "—") + '</td><td><span class="b warn">' + escapeHtml(label) + '</span></td><td><a class="iconbtn" style="width:34px;height:34px" href="document-detail.html?ref=' + encodeURIComponent(doc.reference) + '" aria-label="Ouvrir le document"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/></svg></a></td></tr>';
+  }
+  function renderQueue(items) {
+    var body = document.getElementById("queueBody");
+    if (!body) return;
+    if (!Array.isArray(items) || !items.length) {
+      body.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">Aucun document en attente d\'indexation.</td></tr>';
+      return;
+    }
+    body.innerHTML = items.map(queueRow).join("");
+  }
+  function loadQueue() {
+    var body = document.getElementById("queueBody");
+    return api("GET", "/documents/queue").then(function (items) { renderQueue(items); return items; }).catch(function () {
+      if (body) body.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">Impossible de charger la file d\'attente.</td></tr>';
+    });
+  }
+  function populateReferentielSelects() {
+    var typeSel = document.getElementById("scanTypeCode");
+    var domSel = document.getElementById("scanDomaine");
+    if (!typeSel && !domSel) return;
+    api("GET", "/referentiels").then(function (ref) {
+      if (typeSel) {
+        typeSel.innerHTML = '<option value="">Choisir un type…</option>' + (ref.typesDocuments || []).map(function (grp) {
+          return '<optgroup label="' + escapeHtml(grp.categorie) + '">' + grp.options.map(function (o) { return '<option value="' + o.code + '">' + o.code + ' — ' + escapeHtml(o.label) + '</option>'; }).join("") + '</optgroup>';
+        }).join("");
+      }
+      if (domSel) {
+        domSel.innerHTML = '<option value="">Aucun (dossier déjà existant)</option>' + (ref.domaines || []).map(function (d) { return '<option value="' + d.code + '">' + d.code + ' — ' + escapeHtml(d.label) + '</option>'; }).join("");
+      }
+    });
+  }
   function setupScan() {
     if (page.indexOf("scan") !== 0) return;
     if (!can("scan")) return deny("La numérisation n'est pas dans votre socle d'accès.");
-    var btn = Array.from(document.querySelectorAll("button.btn.pri")).find(function (b) { return /archiver/i.test(b.textContent); });
+    loadQueue();
+    populateReferentielSelects();
+    var btn = Array.from(document.querySelectorAll("button.btn.pri")).find(function (b) { return /contrôle/i.test(b.textContent); });
     if (btn) {
-      btn.addEventListener("click", function () {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
         var data = collectFields();
+        var input = document.querySelector("[data-upload-file]");
+        var file = input && input.files && input.files[0];
+        if (!file) return toast("Choisissez le fichier à archiver.", "err");
+        if (!data.type_code) return toast("Choisissez un type de document dans le référentiel.", "err");
+        if (!data.dossier) return toast("Sélectionnez le dossier existant auquel rattacher ce document.", "err");
         if (/confidentiel/i.test(data.niveau_de_confidentialite || "") && !can("validateActs")) {
           return deny("Seul le notaire archive un acte confidentiel.");
         }
-        api("POST", "/documents/archive", data).then(function () {
-          toast("Document envoyé à l'archivage (PDF/A + empreinte).", "ok");
+        var form = new FormData();
+        form.append("fichier", file);
+        form.append("type_code", data.type_code);
+        form.append("niveau", data.niveau_de_confidentialite || "Standard");
+        if (data.dossier) form.append("dossier", data.dossier);
+        btn.disabled = true;
+        apiMultipart("/documents/upload", form).then(function (doc) {
+          toast("Document envoyé au contrôle : " + doc.reference, "ok");
+          if (input) input.value = "";
+          loadQueue();
+        }).finally(function () {
+          btn.disabled = false;
         });
       });
     }
-    document.querySelectorAll("table .iconbtn").forEach(function (a) {
-      a.addEventListener("click", function (e) {
-        e.preventDefault();
-        var name = a.closest("tr") && a.closest("tr").querySelector(".tname");
-        api("GET", "/documents/queue/" + encodeURIComponent((name && name.textContent.trim()) || "")).then(function () {
-          toast("Ouverture de la file d'indexation.", "ok");
-        });
-      });
-    });
   }
 
+  function dossierRow(item) {
+    return '<tr><td class="tname"><span class="fic" style="background:var(--primary-soft);color:var(--primary-600)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>' + escapeHtml(item.client || item.nom || "Sans client") + '</td>' +
+      '<td>' + escapeHtml(item.objet || "—") + '</td><td>' + escapeHtml(item.notaire || "—") + '</td><td>' + escapeHtml(item.documentsCount != null ? item.documentsCount + " documents" : "—") + '</td>' +
+      '<td><span class="b ' + (item.statut === "cloture" || item.statut === "clôturé" ? "grey" : (item.statut === "en_attente" ? "warn" : "green")) + '">' + escapeHtml(item.statutLabel || item.statut || "—") + '</span></td>' +
+      '<td><a class="iconbtn" style="width:34px;height:34px" href="dossier-detail.html?ref=' + encodeURIComponent(item.reference) + '"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/></svg></a></td></tr>';
+  }
+  function renderDossiers(items) {
+    var body = document.getElementById("dossiersBody");
+    if (!body) return;
+    if (!Array.isArray(items) || !items.length) {
+      body.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Aucun dossier pour le moment.</td></tr>';
+      return;
+    }
+    body.innerHTML = items.map(dossierRow).join("");
+  }
+  function loadDossiers() {
+    var body = document.getElementById("dossiersBody");
+    return api("GET", "/dossiers").then(function (items) { renderDossiers(items); return items; }).catch(function () {
+      if (body) body.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Impossible de charger les dossiers.</td></tr>';
+    });
+  }
   function setupDossiers() {
     if (page.indexOf("dossiers") !== 0) return;
     if (!can("dossiers")) return;
+    loadDossiers();
     var add = Array.from(document.querySelectorAll(".btn.pri")).find(function (b) { return /nouveau dossier/i.test(b.textContent); });
     if (add) {
       add.addEventListener("click", function (e) {
@@ -403,16 +634,38 @@
             '<div class="field"><label>Client</label><input class="inp" name="client" placeholder="Nom du client"></div>' +
             '<div class="field"><label>Objet</label><input class="inp" name="objet" placeholder="Vente, donation…"></div>',
           onOk: function (payload) {
-            return api("POST", "/dossiers", payload).then(function () { toast("Dossier créé.", "ok"); });
+            return api("POST", "/dossiers", payload).then(function () { toast("Dossier créé.", "ok"); loadDossiers(); });
           }
         });
       });
     }
   }
 
+  function userRow(item) {
+    var initialsTxt = initials(item.name);
+    return '<tr><td class="tname"><span class="av" style="background:var(--primary-soft);color:var(--primary-600);border-radius:11px;width:34px;height:34px">' + escapeHtml(initialsTxt) + '</span>' + escapeHtml(item.name) + '</td>' +
+      '<td>' + escapeHtml(item.roleLabel || item.role) + '</td><td><span class="b ' + (item.isActive ? "green" : "grey") + '">' + (item.isActive ? "Actif" : "Accès suspendu") + '</span></td>' +
+      '<td><a class="iconbtn" style="width:34px;height:34px" href="permissions.html"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg></a></td></tr>';
+  }
+  function renderUsers(items) {
+    var body = document.getElementById("usersBody");
+    if (!body) return;
+    if (!Array.isArray(items) || !items.length) {
+      body.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">Aucun utilisateur pour le moment.</td></tr>';
+      return;
+    }
+    body.innerHTML = items.map(userRow).join("");
+  }
+  function loadUsers() {
+    var body = document.getElementById("usersBody");
+    return api("GET", "/users").then(function (items) { renderUsers(items); return items; }).catch(function () {
+      if (body) body.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">Impossible de charger les utilisateurs.</td></tr>';
+    });
+  }
   function setupUsers() {
     if (page.indexOf("utilisateurs") !== 0) return;
     if (!can("users")) return deny("La gestion des comptes est réservée au notaire.");
+    loadUsers();
     var add = Array.from(document.querySelectorAll(".btn.pri")).find(function (b) { return /ajouter/i.test(b.textContent); });
     if (add) {
       add.addEventListener("click", function (e) {
@@ -427,6 +680,7 @@
           onOk: function (payload) {
             return api("POST", "/users", payload).then(function () {
               toast("Compte créé. Identifiants transmis à l'étude.", "ok");
+              loadUsers();
             });
           }
         });
@@ -434,9 +688,31 @@
     }
   }
 
+  function permissionRow(item) {
+    return '<tr data-id="' + item.id + '"><td class="tname">' + escapeHtml(item.beneficiaire) + '</td>' +
+      '<td>' + escapeHtml(item.cibleReference || item.cible || "—") + '</td><td>' + escapeHtml(item.accessLevelLabel || item.accessLevel) + '</td>' +
+      '<td>' + (item.createdAt ? docDate(item.createdAt) : "—") + '</td><td><span class="b green">Accordé</span></td>' +
+      '<td><a class="iconbtn" style="width:34px;height:34px" href="#"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/></svg></a></td></tr>';
+  }
+  function renderPermissions(items) {
+    var body = document.getElementById("permissionsBody");
+    if (!body) return;
+    if (!Array.isArray(items) || !items.length) {
+      body.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Aucun accès attribué.</td></tr>';
+      return;
+    }
+    body.innerHTML = items.map(permissionRow).join("");
+  }
+  function loadPermissions() {
+    var body = document.getElementById("permissionsBody");
+    return api("GET", "/permissions").then(function (items) { renderPermissions(items); return items; }).catch(function () {
+      if (body) body.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Impossible de charger les accès.</td></tr>';
+    });
+  }
   function setupPermissions() {
     if (page.indexOf("permissions") !== 0) return;
     if (!can("permissions")) return deny("L'attribution des accès est réservée au notaire.");
+    loadPermissions();
     var btn = Array.from(document.querySelectorAll("button.btn.pri")).find(function (b) { return /ouvrir l'accès/i.test(b.textContent); });
     if (btn) {
       btn.addEventListener("click", function () {
@@ -445,26 +721,31 @@
           toast("Le motif est obligatoire.", "err");
           return;
         }
-        api("POST", "/permissions", data).then(function () { toast("Accès attribué.", "ok"); });
+        api("POST", "/permissions", data).then(function () { toast("Accès attribué.", "ok"); loadPermissions(); });
       });
     }
-    document.querySelectorAll("table .iconbtn").forEach(function (a) {
-      a.addEventListener("click", function (e) {
+    var body = document.getElementById("permissionsBody");
+    if (body) {
+      body.addEventListener("click", function (e) {
+        var a = e.target.closest(".iconbtn");
+        if (!a) return;
         e.preventDefault();
+        var row = a.closest("tr");
+        var id = row && row.getAttribute("data-id");
+        var who = row && row.querySelector(".tname");
         openModal({
           title: "Révoquer l'accès",
           text: "Cette révocation est journalisée.",
           ok: "Révoquer",
           onOk: function () {
-            var row = a.closest("tr");
-            var who = row && row.querySelector(".tname");
-            return api("DELETE", "/permissions", { beneficiaire: who ? who.textContent.trim() : "" }).then(function () {
+            return api("DELETE", "/permissions", id ? { id: id } : { beneficiaire: who ? who.textContent.trim() : "" }).then(function () {
               toast("Accès révoqué.", "ok");
+              loadPermissions();
             });
           }
         });
       });
-    });
+    }
   }
 
   function setupConfig() {
@@ -506,13 +787,31 @@
   function setupAudit() {
     if (page.indexOf("journal") !== 0) return;
     if (!can("audit")) return;
+    if (!cfg.useMock) api("GET", "/audit?scope=" + (cfg.role === "admin" ? "cabinet" : "me")).then(function (logs) {
+      var card = document.querySelector(".wrap .card");
+      if (!card || !Array.isArray(logs)) return;
+      card.innerHTML = logs.length ? logs.map(function (log) {
+        return '<div class="lrow"><span class="li" style="background:var(--primary-soft);color:var(--primary)">◷</span><div><div class="lt">' + escapeHtml(log.user) + '</div><div class="ls">' + escapeHtml(log.action.replace(/_/g, " ")) + (log.targetId ? " — " + escapeHtml(log.targetId) : "") + '</div></div><div class="lx"><span class="ls">' + docDate(log.timestamp) + '</span></div></div>';
+      }).join("") : '<div class="lrow"><div><div class="lt">Aucune activité</div><div class="ls">Les actions réalisées apparaîtront ici.</div></div></div>';
+    });
     var exportBtn = Array.from(document.querySelectorAll("a.btn,.btn")).find(function (b) { return /export csv/i.test(b.textContent); });
     if (exportBtn) {
       exportBtn.addEventListener("click", function (e) {
         e.preventDefault();
-        api("GET", "/audit/export?scope=" + (cfg.role === "notaire" ? "cabinet" : "me")).then(function () {
-          toast("Export CSV préparé.", "ok");
-        });
+        var scope = cfg.role === "admin" ? "cabinet" : "me";
+        fetch(cfg.apiBase + "/audit/export?scope=" + scope, { headers: { Authorization: "Bearer " + cfg.token } }).then(function (r) {
+          if (r.status === 401) throw new Error("Session expirée.");
+          if (r.status === 403) throw new Error("Droits insuffisants.");
+          if (!r.ok) throw new Error("Export impossible.");
+          return r.blob();
+        }).then(function (blob) {
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "audit.csv";
+          a.click();
+          URL.revokeObjectURL(a.href);
+          toast("Export CSV téléchargé.", "ok");
+        }).catch(function (err) { toast(err.message || "Échec de l'export.", "err"); });
       });
     }
   }
@@ -520,17 +819,106 @@
   function setupDocumentDetail() {
     if (page.indexOf("document-detail") !== 0) return;
     var ref = params.get("ref");
+
+    function updateDownloadButton(doc) {
+      var dlBtn = document.getElementById("btnTelecharger");
+      if (!dlBtn) return;
+      dlBtn.style.display = doc.has_access ? "" : "none";
+    }
+
+    function updateOcrQualityButtons(doc) {
+      var ocrBtn = document.getElementById("btnOCR");
+      if (ocrBtn) ocrBtn.innerHTML = ocrBtn.innerHTML.replace(/Lancer l'OCR|Relancer l'OCR/i, doc.ocr_status === "extrait" ? "Relancer l'OCR" : "Lancer l'OCR");
+      var qcBtn = document.getElementById("btnQualityCheck");
+      if (qcBtn) qcBtn.innerHTML = qcBtn.innerHTML.replace(/Contrôle qualité|Contrôle qualité effectué/i, doc.quality_checked_at ? "Contrôle qualité effectué" : "Contrôle qualité");
+    }
+
+    function updateAccessRequestButton(pending) {
+      var askBtn = document.getElementById("btnDemanderAcces");
+      if (!askBtn) return;
+      if (pending) {
+        askBtn.classList.add("disabled");
+        askBtn.setAttribute("aria-disabled", "true");
+        askBtn.innerHTML = askBtn.innerHTML.replace(/Demander l'accès/i, "Demande envoyée — en attente");
+      } else {
+        askBtn.classList.remove("disabled");
+        askBtn.removeAttribute("aria-disabled");
+        askBtn.innerHTML = askBtn.innerHTML.replace(/Demande envoyée.*en attente/i, "Demander l'accès");
+      }
+    }
+
     if (ref) {
       document.querySelectorAll(".kv").forEach(function (kv) {
         if (/référence/i.test(kv.textContent) && kv.querySelector("b")) kv.querySelector("b").textContent = ref;
+      });
+      if (!cfg.useMock) api("GET", "/access-requests").then(function (items) {
+        var pending = Array.isArray(items) && items.some(function (item) { return item.cibleReference === ref && item.status === "en_attente"; });
+        updateAccessRequestButton(pending);
+      });
+      if (!cfg.useMock) api("GET", "/documents/" + encodeURIComponent(ref) + "?format=json").then(function (doc) {
+        updateDownloadButton(doc);
+        updateOcrQualityButtons(doc);
+        var cards = document.querySelectorAll(".two > .card");
+        if (cards[0]) {
+          cards[0].classList.add("doc-viewer-card");
+          cards[0].innerHTML = '<div class="doc-viewer-status" style="min-height:520px">Chargement du document…</div>';
+          fetch(cfg.apiBase + "/documents/" + encodeURIComponent(ref), { headers: { Authorization: "Bearer " + cfg.token } }).then(function (r) { if (!r.ok) throw new Error(); return r.blob(); }).then(function (blob) {
+            if (window.GEDPdfViewer) {
+              window.GEDPdfViewer.mount(cards[0], { blob: blob, filename: doc.nom, contentType: doc.content_type });
+            } else {
+              cards[0].innerHTML = '<div class="muted" style="height:520px;display:grid;place-items:center">Prévisualisation indisponible.</div>';
+            }
+          }).catch(function () { cards[0].innerHTML = '<div class="muted" style="height:520px;display:grid;place-items:center">Prévisualisation indisponible.</div>'; });
+        }
+        document.querySelectorAll(".kv").forEach(function (kv) {
+          var label = kv.querySelector("span"); var value = kv.querySelector("b"); if (!label || !value) return;
+          if (/référence/i.test(label.textContent)) value.textContent = doc.reference;
+          if (/type/i.test(label.textContent)) value.textContent = doc.type;
+          if (/confidentialité/i.test(label.textContent)) value.textContent = doc.niveau_de_confidentialite;
+          if (/empreinte/i.test(label.textContent)) value.textContent = doc.sha256;
+          if (/format/i.test(label.textContent)) value.textContent = doc.content_type;
+        });
+        var kvCode = document.getElementById("kvCodeNotarial");
+        if (kvCode) kvCode.textContent = (doc.codeNotarialActuel || doc.code_notarial || "—") + "  ·  " + (doc.idMaitre || "");
+        var title = document.querySelector(".two h3"); if (title) title.textContent = doc.nom;
+        var meta = document.getElementById("docMeta");
+        if (meta) meta.textContent = (doc.uploadedByName || "Auteur inconnu") + " · " + (doc.created_at ? docDate(doc.created_at) : "date inconnue");
+        var versionsHost = document.getElementById("versionsList");
+        if (versionsHost) {
+          api("GET", "/documents/" + encodeURIComponent(ref) + "/versions").then(function (versions) {
+            if (!Array.isArray(versions) || !versions.length) {
+              versionsHost.innerHTML = '<div class="kv"><span>Aucune version enregistrée.</span><b></b></div>';
+              return;
+            }
+            versionsHost.innerHTML = versions.slice().sort(function (a, b) { return b.version - a.version; }).map(function (v) {
+              return '<div class="kv"><span>Version ' + v.version + (v.is_current ? ' — actuelle' : '') + '</span><b>' + escapeHtml(v.created_at ? docDate(v.created_at) : "—") + '</b></div>';
+            }).join("");
+          }).catch(function () {
+            versionsHost.innerHTML = '<div class="kv"><span>Historique des versions indisponible.</span><b></b></div>';
+          });
+        }
       });
     }
     Array.from(document.querySelectorAll("a.btn,button.btn")).forEach(function (el) {
       el.addEventListener("click", function (e) {
         var label = el.textContent.trim();
-        if (/demander l'accès/i.test(label)) {
+        if (/voir en plein écran/i.test(label)) {
           e.preventDefault();
-          requestAccess(ref || "");
+          var viewerCard = document.querySelector(".two > .card");
+          if (viewerCard && viewerCard.querySelector(".doc-viewer") && window.GEDPdfViewer) {
+            window.GEDPdfViewer.toggleFullscreen(viewerCard);
+          } else {
+            toast("Le document n'est pas encore chargé.", "err");
+          }
+        } else if (/demande envoyée/i.test(label)) {
+          e.preventDefault();
+          toast("Votre demande est déjà en cours de traitement.", "err");
+        } else if (/demander l'accès/i.test(label)) {
+          e.preventDefault();
+          requestAccess(ref || "", function () { updateAccessRequestButton(true); });
+        } else if (/télécharger/i.test(label)) {
+          e.preventDefault();
+          fetch(cfg.apiBase + "/documents/" + encodeURIComponent(ref || "current") + "/export", { headers: { Authorization: "Bearer " + cfg.token } }).then(function (r) { if (!r.ok) throw new Error("Téléchargement impossible."); return r.blob(); }).then(function (blob) { var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "document"; a.click(); URL.revokeObjectURL(a.href); toast("Document téléchargé.", "ok"); }).catch(function (err) { toast(err.message, "err"); });
         } else if (/valider l'acte/i.test(label)) {
           e.preventDefault();
           if (!can("validateActs")) return deny("Seul le notaire valide un acte.");
@@ -539,27 +927,111 @@
           });
         } else if (/exporter/i.test(label)) {
           e.preventDefault();
-          api("GET", "/documents/" + encodeURIComponent(ref || "current") + "/export").then(function () {
-            toast("Export PDF/A lancé.", "ok");
-          });
+          fetch(cfg.apiBase + "/documents/" + encodeURIComponent(ref || "current") + "/export", { headers: { Authorization: "Bearer " + cfg.token } }).then(function (r) { if (!r.ok) throw new Error("Export impossible."); return r.blob(); }).then(function (blob) { var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "document"; a.click(); URL.revokeObjectURL(a.href); toast("Export téléchargé.", "ok"); }).catch(function (err) { toast(err.message, "err"); });
         } else if (/imprimer/i.test(label)) {
           e.preventDefault();
           window.print();
+        } else if (/lancer l'ocr|relancer l'ocr/i.test(label)) {
+          e.preventDefault();
+          api("POST", "/documents/" + encodeURIComponent(ref || "current") + "/ocr", {}).then(function (doc) {
+            toast(doc.ocr_status === "extrait" ? "Texte extrait avec succès." : "OCR terminé : " + (doc.ocr_error || "aucun texte exploitable trouvé."), doc.ocr_status === "extrait" ? "ok" : "err");
+            updateOcrQualityButtons(doc);
+          }).catch(function (err) { toast(err.message || "Échec de l'OCR.", "err"); });
+        } else if (/contrôle qualité/i.test(label)) {
+          e.preventDefault();
+          openModal({
+            title: "Contrôle qualité de la numérisation",
+            ok: "Valider le contrôle",
+            bodyHtml:
+              '<div class="field"><label><input type="checkbox" name="complete" checked> Document complet</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="ordered" checked> Pages dans le bon ordre</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="legible" checked> Lisible</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="noMissingPage" checked> Aucune page manquante</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="noDuplicate" checked> Aucun doublon</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="orientationCorrect" checked> Orientation correcte</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="dossierCorrect" checked> Bon dossier / bonne affaire</label></div>' +
+              '<div class="field"><label>Notes (optionnel)</label><textarea class="inp" name="notes" rows="2"></textarea></div>',
+            onOk: function (payload) {
+              var checks = {};
+              ["complete", "ordered", "legible", "noMissingPage", "noDuplicate", "orientationCorrect", "dossierCorrect"].forEach(function (key) {
+                var box = document.querySelector('.modal-backdrop [name="' + key + '"]');
+                checks[key] = box ? box.checked : true;
+              });
+              return api("POST", "/documents/" + encodeURIComponent(ref || "current") + "/quality-check", { checks: checks, notes: payload.notes || "" }).then(function (doc) {
+                toast(doc.quality_passed ? "Contrôle qualité validé : document en attente de validation notariale." : "Contrôle qualité échoué : document renvoyé à corriger.", doc.quality_passed ? "ok" : "err");
+                updateOcrQualityButtons(doc);
+              });
+            }
+          });
         }
       });
     });
   }
 
+  var NOTIF_ICONS = {
+    backup: { bg: "var(--green-soft)", fg: "#1E9C72", path: '<path d="m5 12 4 4 10-10"/>' },
+    permission_granted: { bg: "var(--warn-soft)", fg: "#A9740A", path: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/>' },
+    document: { bg: "var(--blue-soft)", fg: "#2E6FD6", path: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/>' }
+  };
+  function timeAgo(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d)) return "";
+    var diffMs = Date.now() - d.getTime();
+    var mins = Math.round(diffMs / 60000);
+    if (mins < 1) return "à l'instant";
+    if (mins < 60) return "il y a " + mins + " min";
+    var hours = Math.round(mins / 60);
+    if (hours < 24) return "il y a " + hours + " h";
+    var days = Math.round(hours / 24);
+    if (days === 1) return "hier";
+    if (days < 7) return "il y a " + days + " j";
+    return docDate(iso);
+  }
+  function notificationRow(item) {
+    var icon = NOTIF_ICONS[item.type] || NOTIF_ICONS.document;
+    return '<div class="lrow" data-id="' + item.id + '" style="cursor:pointer' + (item.read ? ";opacity:.6" : "") + '"><span class="li" style="background:' + icon.bg + ';color:' + icon.fg + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon.path + '</svg></span>' +
+      '<div><div class="lt">' + escapeHtml(item.title || "Notification") + '</div><div class="ls">' + escapeHtml(item.message || "") + '</div></div>' +
+      '<div class="lx"><span class="ls">' + timeAgo(item.createdAt) + '</span></div></div>';
+  }
+  function renderNotifications(items) {
+    var host = document.getElementById("notificationsList");
+    if (!host) return;
+    if (!Array.isArray(items) || !items.length) {
+      host.innerHTML = '<div class="muted" style="text-align:center;padding:24px">Aucune notification.</div>';
+      return;
+    }
+    host.innerHTML = items.map(notificationRow).join("");
+  }
+  function loadNotifications() {
+    var host = document.getElementById("notificationsList");
+    return api("GET", "/notifications").then(function (items) { renderNotifications(items); return items; }).catch(function () {
+      if (host) host.innerHTML = '<div class="muted" style="text-align:center;padding:24px">Impossible de charger les notifications.</div>';
+    });
+  }
+  function refreshNotifDot() {
+    var dot = document.querySelector(".bell .dot");
+    if (!dot) return;
+    api("GET", "/notifications/unread-count").then(function (data) {
+      dot.classList.toggle("show", !!(data && data.count > 0));
+    }).catch(function () {});
+  }
   function setupNotifications() {
+    refreshNotifDot();
     if (page.indexOf("notifications") !== 0) return;
-    document.querySelectorAll(".lrow").forEach(function (row) {
-      row.style.cursor = "pointer";
-      row.addEventListener("click", function () {
-        api("PATCH", "/notifications/read", { title: (row.querySelector(".lt") && row.querySelector(".lt").textContent) || "" }).then(function () {
-          toast("Notification marquée comme lue.", "ok");
+    loadNotifications();
+    var host = document.getElementById("notificationsList");
+    if (host) {
+      host.addEventListener("click", function (e) {
+        var row = e.target.closest(".lrow");
+        if (!row) return;
+        var id = row.getAttribute("data-id");
+        api("PATCH", "/notifications/read", { id: id }).then(function () {
+          row.style.opacity = ".6";
+          refreshNotifDot();
         });
       });
-    });
+    }
   }
 
   function setupAccessLinks() {
@@ -583,7 +1055,8 @@
           bodyHtml:
             '<div class="field"><label>Niveau</label><select class="sel" name="niveau"><option>Tous</option><option>Standard</option><option>Restreint</option><option>Confidentiel</option></select></div>',
           onOk: function (payload) {
-            return api("GET", "/documents?niveau=" + encodeURIComponent(payload.niveau || "")).then(function () {
+            return api("GET", "/documents?niveau=" + encodeURIComponent(payload.niveau || "")).then(function (items) {
+              renderDocuments(items);
               toast("Filtres appliqués à votre périmètre.", "ok");
             });
           }
@@ -604,10 +1077,14 @@
 
   var __session = requireSession();
   if (!__session) return;
+  cfg.token = __session.token;
   if (!guardPage()) return;
   applySessionIdentity(__session);
   wireLogout();
   setupNav();
+  setupNavTooltips();
+  setupBackButtons();
+  setupFixedHeader();
   setupSearch();
   setupSegs();
   setupDocs();
@@ -625,5 +1102,24 @@
   setupNotifications();
   setupAccessLinks();
   setupFilterBtn();
+  function setupDashboard() {
+    if (page.indexOf("index") !== 0) return;
+    api("GET", "/dashboard/summary").then(function (data) {
+      var values = cfg.role === "collaborateur" ? [data.documentsAccessibleCount, data.dossiersCount, data.pendingAccessRequestCount, data.consultationsCount] : [data.documentsAccessibleCount, data.pendingIndexationCount, data.dossiersCount, data.pendingAccessRequestCount];
+      document.querySelectorAll(".stats .stat .v").forEach(function (el, index) { if (values[index] != null) el.textContent = values[index]; });
+      var heroTitle = document.querySelector(".hero h3");
+      if (heroTitle) heroTitle.textContent = "Bonjour " + ((__session.name || "").split(/\s+/)[0] || "");
+      var heroText = document.querySelector(".hero p");
+      if (heroText) heroText.textContent = data.pendingIndexationCount + " document" + (data.pendingIndexationCount > 1 ? "s" : "") + " attendent une indexation. " + data.pendingAccessRequestCount + " demande" + (data.pendingAccessRequestCount > 1 ? "s" : "") + " d'accès est en attente.";
+      var access = document.getElementById("accessRequestList");
+      var latest = (data.pendingAccessRequests || [])[0];
+      if (access) access.innerHTML = latest ? '<span class="li" style="background:var(--warn-soft);color:#A9740A">◷</span><div><div class="lt">' + escapeHtml(latest.reference) + '</div><div class="ls">' + escapeHtml(latest.status) + '</div></div><div class="lx"><span class="ls">' + escapeHtml(docDate(latest.createdAt)) + '</span></div>' : '<div><div class="lt">Aucune demande en attente</div><div class="ls">Les demandes d’accès apparaîtront ici.</div></div>';
+      var alert = document.getElementById("dashboardAlerts");
+      if (alert) alert.innerHTML = '<span class="li" style="background:var(--green-soft);color:#1E9C72">✓</span><div><div class="lt">File d’indexation</div><div class="ls">' + data.pendingIndexationCount + " document" + (data.pendingIndexationCount > 1 ? "s" : "") + " à traiter</div></div>";
+      renderDocuments(data.recentDocuments);
+    });
+  }
+
   setupChips();
+  setupDashboard();
 })();
