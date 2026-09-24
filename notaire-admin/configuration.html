@@ -2,12 +2,14 @@
 <html lang="fr" data-theme="notaire">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
 <title>GED Notaire — Configuration</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<meta name="theme-color" content="#FFFDFA">
+<link rel="stylesheet" href="../assets/responsive.css">
 </head>
 <body data-theme="notaire" data-role="notaire">
   <div class="app">
@@ -32,6 +34,7 @@
       <div class="pill-tabs">
         <span class="pt on" data-tab="etude">Étude</span>
         <span class="pt" data-tab="codification">Codification</span>
+        <span class="pt" data-tab="dossiers">Dossiers</span>
         <span class="pt" data-tab="securite">Sécurité</span>
       </div>
 
@@ -53,6 +56,27 @@
           <div class="field"><label>Logique de codification</label><input class="inp" name="codification_policy" value="ISO15489-{ANNÉE}-{DOSSIER}-{SÉQUENCE}"></div>
           <div class="hint">Ce gabarit s'applique automatiquement à chaque nouveau document archivé dans l'étude.</div>
           <button class="btn pri lg"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Enregistrer</button>
+        </div>
+      </div>
+
+      <div class="cfg-panel" data-tab="dossiers">
+        <div class="card" style="margin-top:16px" id="modelesChecklist">
+          <div class="sec-h"><h2>Modèles de checklist par type d'affaire</h2><span class="b grey" id="modelesCompte">—</span></div>
+          <div class="hint">Pièces exigées à l'ouverture d'un dossier. Un dépôt du type indiqué est rattaché automatiquement (« reçu, à vérifier ») ; les pièces obligatoires non reçues sont relancées. Une modification s'applique aux dossiers ouverts ensuite.</div>
+          <div class="two" style="margin-top:12px;align-items:end">
+            <div class="field"><label for="modeleDomaine">Type d'affaire</label><select class="sel" id="modeleDomaine" data-modele="1"></select></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button type="button" class="btn" id="modelesProposes">Charger les modèles proposés</button></div>
+          </div>
+          <div class="table-wrap" style="margin-top:6px"><table><thead><tr><th>Pièce attendue</th><th>Type</th><th>Obligatoire</th><th>Relance (jours)</th><th>Active</th><th></th></tr></thead>
+          <tbody id="modelesListe"><tr><td colspan="6" class="muted" style="text-align:center;padding:18px">Chargement…</td></tr></tbody></table></div>
+          <div class="two" style="margin-top:12px;align-items:end">
+            <div class="field"><label for="modeleLibelle">Nouvelle pièce</label><input class="inp" id="modeleLibelle" data-modele="1" maxlength="255" placeholder="Ex. Certificat d'urbanisme"></div>
+            <div class="field"><label for="modeleType">Type de document</label><select class="sel" id="modeleType" data-modele="1"></select></div>
+          </div>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+            <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="modeleRequis" checked> Obligatoire</label>
+            <button type="button" class="btn pri" id="modeleAjouter" style="margin-left:auto">Ajouter au modèle</button>
+          </div>
         </div>
       </div>
 
@@ -78,7 +102,12 @@
             <label>Importer un paquet de récupération</label>
             <div class="two">
               <input class="inp" type="file" id="recoveryFile" accept="application/json">
-              <input class="inp" type="password" id="recoveryPassphrase" placeholder="Phrase secrète">
+              <div class="inp-wrap" style="position:relative;display:flex;align-items:center">
+                <input class="inp" type="password" id="recoveryPassphrase" placeholder="Phrase secrète" style="padding-right:42px">
+                <button type="button" class="toggle-eye" data-target="recoveryPassphrase" aria-label="Afficher la phrase secrète">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
             </div>
             <div class="hint">À utiliser uniquement pour restaurer des clés perdues à partir d'un paquet exporté précédemment.</div>
             <button class="btn" id="importRecoveryBtn" style="margin-top:8px">Importer le paquet</button>
@@ -96,5 +125,6 @@
   </div>
   <script src="assets/config.js"></script>
   <script src="assets/app.js"></script>
+<script src="../assets/responsive.js"></script>
 </body>
 </html>

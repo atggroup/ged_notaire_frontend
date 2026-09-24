@@ -9,6 +9,8 @@
      ========================================================= */
   var toastHost = document.createElement("div");
   toastHost.className = "toast-host";
+  toastHost.setAttribute("role", "status");
+  toastHost.setAttribute("aria-live", "polite");
   document.body.appendChild(toastHost);
   function toast(message, kind) {
     var el = document.createElement("div");
@@ -166,6 +168,16 @@
   var illuPanel = stage ? stage.querySelector(".illu-panel") : null;
   var formPanel = stage ? stage.querySelector(".form-panel") : null;
   var illuImg = document.getElementById("illuImage");
+  // Repli PNG -> SVG. Auparavant porte par un attribut onerror= dans le HTML,
+  // ce qui obligeait la CSP a autoriser le script en ligne ; l'ecouteur fait
+  // la meme chose sans affaiblir la politique.
+  if (illuImg) {
+    illuImg.addEventListener("error", function handleIlluError() {
+      var fallback = illuImg.getAttribute("data-fallback");
+      if (!fallback || illuImg.src.indexOf(fallback) !== -1) return;
+      illuImg.src = fallback;
+    });
+  }
   var illuBadge = document.getElementById("illuBadge");
   var illuTitle = document.getElementById("illuTitle");
   var illuSub = document.getElementById("illuSub");
@@ -438,8 +450,12 @@
      ========================================================= */
   // On efface tout de suite le jeton/le code d'erreur de l'URL : jamais de
   // trace dans l'historique du navigateur ni dans un lien copié/partagé.
-  if (incomingOauthTicket || incomingOauthError || pendingGoogleTicket || initialGo) {
+  var expirationInactivite = initialParams.get("expire") === "inactivite";
+  if (incomingOauthTicket || incomingOauthError || pendingGoogleTicket || initialGo || expirationInactivite) {
     window.history.replaceState({}, document.title, window.location.pathname);
+  }
+  if (expirationInactivite) {
+    setTimeout(function () { toast("Vous avez été déconnecté après une période d’inactivité. Reconnectez-vous pour continuer.", "ok"); }, 300);
   }
 
   if (incomingOauthTicket) {
@@ -447,6 +463,21 @@
     // directement avec le rôle choisi) : on échange le jeton à usage unique
     // contre une vraie session et on part directement vers le tableau de bord.
     api(EP.oauthGoogleConsume, { ticket: incomingOauthTicket }).then(function (res) {
+      // Google atteste l'adresse e-mail, pas la possession du second facteur.
+      // Pour un notaire — ou tout compte détenant un accès confidentiel — le
+      // serveur répond « mfaRequired » : on enchaîne sur le même écran de
+      // saisie de code que la connexion par mot de passe.
+      if (res.mfaRequired) {
+        loginState.email = res.email || "";
+        loginState.password = "";
+        loginState.googleTicket = incomingOauthTicket;
+        loginState.method = res.method || "email";
+        loginState.challenge = res.challenge || "";
+        goTo("login-verify");
+        prepLoginOtp();
+        if (loginState.method !== "totp") toast("Un code de vérification vous a été envoyé par e-mail.", "ok");
+        return;
+      }
       saveSession({ token: res.token, role: res.role, name: res.name, email: res.email, ts: Date.now() });
       var dest = (cfg.roleRoutes || {})[res.role] || (cfg.roleRoutes || {}).collaborateur;
       playIntroTransition(dest);
@@ -543,7 +574,7 @@
     input.addEventListener("input", function () {
       var v = input.value;
       var rules = {
-        len: v.length >= 8,
+        len: v.length >= 12,
         upper: /[A-Z]/.test(v),
         lower: /[a-z]/.test(v),
         digit: /[0-9]/.test(v),
@@ -699,7 +730,7 @@
       var fPw2 = document.getElementById("f-regPassword2");
       clearError(fPw); clearError(fPw2);
       var v = regPwInput.value;
-      var strongEnough = v.length >= 8 && /[A-Z]/.test(v) && /[a-z]/.test(v) && /[0-9]/.test(v);
+      var strongEnough = v.length >= 12 && /[A-Z]/.test(v) && /[a-z]/.test(v) && /[0-9]/.test(v);
       var ok = true;
       if (!strongEnough) { setError(fPw, "Respectez au minimum les règles ci-dessus."); ok = false; }
       if (regPw2Input.value !== v || !v) { setError(fPw2, "Les mots de passe ne correspondent pas."); ok = false; }
@@ -815,6 +846,8 @@
           setLoading(submitBtn, false);
           loginState.email = res.email || emailInput.value.trim();
           loginState.password = passInput.value;
+          loginState.method = res.method || "email";
+          loginState.challenge = res.challenge || "";
           goTo("login-verify");
           prepLoginOtp();
           return;
@@ -835,7 +868,16 @@
      saisie de code (cases à chiffres) que "mot de passe oublié"
      et l'inscription, pour une expérience cohérente.
      ========================================================= */
-  var loginState = { email: "", password: "" };
+  // `googleTicket` : renseigné lorsque le second facteur est demandé à la
+  // suite d'une connexion Google — il n'y a alors aucun mot de passe à
+  // rejouer pour obtenir un nouveau code.
+  // `method` : « email » (code envoyé) ou « totp » (application
+  // d'authentification) ; `challenge` : ticket signé délivré après le mot de
+  // passe, exigé par le serveur pour valider le second facteur.
+  var loginState = { email: "", password: "", googleTicket: "", method: "email", challenge: "" };
+  var loginSecoursToggle = document.getElementById("loginSecoursToggle");
+  var loginSecoursField = document.getElementById("f-loginSecours");
+  var loginSecoursInput = document.getElementById("loginSecours");
   var loginOtpRoot = document.getElementById("loginOtp");
   var loginOtpCtrl = loginOtpRoot ? setupOtp(loginOtpRoot) : null;
   var loginOtpSubmit = document.getElementById("loginOtpSubmit");
@@ -845,11 +887,33 @@
   var loginOtpAttempts = 0;
 
   function prepLoginOtp() {
+    var totp = loginState.method === "totp";
     if (loginOtpEmailLabel) loginOtpEmailLabel.textContent = loginState.email;
+    var consigneEmail = document.getElementById("loginOtpConsigneEmail");
+    var consigneTotp = document.getElementById("loginOtpConsigneTotp");
+    if (consigneEmail) consigneEmail.hidden = totp;
+    if (consigneTotp) consigneTotp.hidden = !totp;
+    // Rien à « renvoyer » avec une application : le code change seul.
+    if (loginOtpResend) loginOtpResend.hidden = totp;
+    if (loginOtpTimer) loginOtpTimer.hidden = totp;
+    if (loginSecoursToggle) loginSecoursToggle.hidden = !totp;
+    if (loginSecoursField) loginSecoursField.hidden = true;
+    if (loginSecoursInput) loginSecoursInput.value = "";
     if (loginOtpCtrl) loginOtpCtrl.reset();
     loginOtpAttempts = 0;
     if (loginOtpSubmit) loginOtpSubmit.disabled = true;
-    startResendTimer(loginOtpResend, loginOtpTimer, (cfg.otp || {}).resendCooldownSeconds || 45);
+    if (!totp) startResendTimer(loginOtpResend, loginOtpTimer, (cfg.otp || {}).resendCooldownSeconds || 45);
+  }
+  if (loginSecoursToggle) {
+    loginSecoursToggle.addEventListener("click", function () {
+      if (loginSecoursField) loginSecoursField.hidden = false;
+      if (loginSecoursInput) loginSecoursInput.focus();
+    });
+  }
+  if (loginSecoursInput) {
+    loginSecoursInput.addEventListener("input", function () {
+      if (loginOtpSubmit) loginOtpSubmit.disabled = loginSecoursInput.value.replace(/[^A-Za-z0-9]/g, "").length < 10;
+    });
   }
   if (loginOtpRoot) {
     loginOtpRoot.addEventListener("otp:change", function (e) {
@@ -858,20 +922,34 @@
   }
   if (loginOtpResend) {
     loginOtpResend.addEventListener("click", function () {
-      api(EP.login, { email: loginState.email, password: loginState.password }).then(function () {
+      // Venu de Google, il n'y a pas de mot de passe à rejouer : on redemande
+      // un code via le même jeton d'échange, à durée de vie courte.
+      var renvoi = loginState.googleTicket
+        ? api(EP.oauthGoogleConsume, { ticket: loginState.googleTicket })
+        : api(EP.login, { email: loginState.email, password: loginState.password });
+      renvoi.then(function (res) {
+        if (res && res.challenge) loginState.challenge = res.challenge;
         toast("Un nouveau code a été envoyé.", "ok");
         startResendTimer(loginOtpResend, loginOtpTimer, (cfg.otp || {}).resendCooldownSeconds || 45);
       }).catch(function (err) {
-        toast(err.message || "Impossible de renvoyer le code.", "err");
+        toast(
+          loginState.googleTicket
+            ? "Le lien Google a expiré. Recommencez la connexion avec Google."
+            : (err.message || "Impossible de renvoyer le code."),
+          "err"
+        );
       });
     });
   }
   if (loginOtpSubmit) {
     loginOtpSubmit.addEventListener("click", function () {
       var code = loginOtpCtrl.value();
-      if (code.length < 6) return;
+      var secours = loginSecoursInput && !loginSecoursField.hidden ? loginSecoursInput.value.trim() : "";
+      if (code.length < 6 && !secours) return;
       setLoading(loginOtpSubmit, true);
-      api(EP.mfaVerify, { email: loginState.email, code: code }).then(function (res) {
+      var charge = { email: loginState.email, code: code, challenge: loginState.challenge };
+      if (secours) charge.recoveryCode = secours;
+      api(EP.mfaVerify, charge).then(function (res) {
         setLoading(loginOtpSubmit, false);
         saveSession({ token: res.token, role: res.role, name: res.name, email: res.email, ts: Date.now() });
         var dest = (cfg.roleRoutes || {})[res.role] || (cfg.roleRoutes || {}).collaborateur;
@@ -989,7 +1067,7 @@
       var fPw2 = document.getElementById("f-forgotPassword2");
       clearError(fPw); clearError(fPw2);
       var v = newPwInput.value;
-      var strongEnough = v.length >= 8 && /[A-Z]/.test(v) && /[a-z]/.test(v) && /[0-9]/.test(v);
+      var strongEnough = v.length >= 12 && /[A-Z]/.test(v) && /[a-z]/.test(v) && /[0-9]/.test(v);
       var ok = true;
       if (!strongEnough) { setError(fPw, "Respectez au minimum les règles ci-dessus."); ok = false; }
       if (newPw2Input.value !== v || !v) { setError(fPw2, "Les mots de passe ne correspondent pas."); ok = false; }

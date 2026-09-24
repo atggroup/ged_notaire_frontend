@@ -49,6 +49,34 @@ de rien d'autre que ce dossier et un ordinateur.
    > (`rmdir /s /q .venv`) et repartez directement des trois commandes
    > sans environnement virtuel — ça fonctionne tout aussi bien ici.
 
+## Recherche dans le texte des documents scannés (important)
+
+Les trois commandes ci-dessus suffisent à faire tourner l'application. En
+revanche, **la recherche par le contenu d'un document scanné** a besoin de
+deux programmes supplémentaires, qui ne s'installent pas avec `pip` :
+
+| Programme | À quoi il sert |
+|---|---|
+| **Tesseract** (avec le français) | lire le texte présent sur l'image d'un scan |
+| **Poppler** | découper le PDF scanné en images pour Tesseract |
+
+Sans eux, l'application continue de fonctionner normalement — vos documents
+sont conservés, chiffrés et consultables — mais un acte **numérisé** ne
+remontera **que** par sa référence, son type ou son dossier, jamais par un mot
+qu'il contient. La fiche du document l'indique alors : *OCR indisponible*.
+
+- **Windows** : installez `tesseract-ocr` (choisissez la langue française à
+  l'installation) puis `poppler for Windows`, et ajoutez leurs dossiers
+  `bin` au PATH.
+- **Mac** : `brew install tesseract tesseract-lang poppler`
+- **Linux** : `sudo apt install tesseract-ocr tesseract-ocr-fra poppler-utils`
+
+💡 Si vous déployez avec Docker (`docker compose up`), il n'y a rien à faire :
+l'image installe déjà ces deux programmes.
+
+Pour vérifier que c'est bien pris en compte, tapez `tesseract --version` puis
+`pdftoppm -v` dans le terminal : les deux doivent répondre.
+
 5. Laissez cette fenêtre ouverte (c'est le "serveur" — le programme qui fait
    tourner l'application). Ouvrez votre navigateur internet (Chrome, Edge…)
    à l'adresse :
@@ -71,7 +99,7 @@ d'inscription (qui ne propose que Clerc principal / Collaborateur, par
 sécurité). Dans le terminal, toujours dans le dossier `backend` :
 
 ```
-python manage.py create_first_admin
+python manage.py create_first_admin --email votre.adresse@etude.ci
 ```
 
 Un mot de passe temporaire s'affiche à l'écran — notez-le, il ne sera

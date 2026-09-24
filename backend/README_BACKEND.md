@@ -18,7 +18,7 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 # Renseigner au minimum SECRET_KEY, DATABASE_URL et DOCUMENT_ENCRYPTION_KEY.
 python manage.py migrate
-python manage.py create_first_admin
+python manage.py create_first_admin --email notaire@etude.ci
 python manage.py runserver 127.0.0.1:8000
 ```
 
@@ -55,7 +55,7 @@ DATABASE_URL=postgresql://ged_user:change-me@127.0.0.1:5432/ged_notaire
 
 ```bash
 python manage.py migrate
-python manage.py create_first_admin
+python manage.py create_first_admin --email notaire@etude.ci
 pytest   # la suite (22 tests) doit passer à l'identique sur Postgres
 ```
 
@@ -116,7 +116,7 @@ localement dans `accounts/google_oauth.py`, sans dépendance externe.
 
 - Les mots de passe sont hachés Argon2id ; les tokens JWT expirent en 8 h,
   peuvent être révoqués immédiatement et les comptes sont verrouillés après
-  cinq échecs. Les comptes Notaire/Admin exigent un second facteur e-mail.
+  cinq échecs. Les comptes Notaire/Admin exigent un second facteur : application d'authentification (TOTP, recommandée, Profil → Sécurité) ou, à défaut, code par e-mail. La réinitialisation du mot de passe ferme toutes les sessions et son lien est à usage unique.
 - Un utilisateur est créé uniquement après une invitation nominative,
   expirante et à usage unique créée par le notaire. La désactivation révoque
   toutes ses sessions.
@@ -162,6 +162,45 @@ document, recalcule son empreinte SHA-256 et n'écrit jamais dans les données
 de production. Activez `BACKUP_CLOUD_ENABLED=true` uniquement lorsqu'un outil
 de réplication externe est effectivement configuré ; l'interface affiche
 explicitement « non configurée » tant que cette étape n'est pas réalisée.
+
+## Automatisations
+
+Les travaux automatiques tournent dans deux exécutants (`python manage.py
+run_worker`), services `travaux` et `sauvegarde` du `docker-compose.yml`.
+Chaque travail est verrouillé (un seul exécutant à la fois), tracé
+(`JobRun`, écran **Sauvegarde · Supervision**), journalisé dans l'audit dès
+qu'il agit ou échoue, retenté selon sa politique, et **tout échec est notifié
+aux notaires**. L'échéancier vit en base : un redémarrage ne fait ni perdre ni
+rejouer une échéance.
+
+| Travail | Fréquence | Effet |
+|---|---|---|
+| `rappels_taches` | 5 min | Paliers J-7 / J-3 / J-1 / jour J, retard (assigné + donneur d'ordre), escalade J+2 au notaire superviseur, échéances d'affectation |
+| `envoi_emails` | 1 min | File des e-mails de notification, 5 tentatives (1 → 240 min), échec définitif signalé |
+| `ocr` | 1 min | File OCR : prise en charge atomique, reprise des traitements bloqués, 3 tentatives, échec notifié |
+| `suivi_dossiers` | 07:00 | Relance des pièces requises non reçues (tâche automatique unique), pièces datées expirées/bientôt expirées, originaux papier non rendus |
+| `surveillance_securite` | 5 min | Force brute, vague d'échecs, verrouillages, IP multiples, consultation/export massifs, exports hors horaires, corbeille en série, privilèges sensibles |
+| `integrite_audit` | 03:30 | Vérification de la chaîne de hash ; rupture = alerte critique |
+| `nettoyage` | 03:00 | OTP expirés, inscriptions/invitations périmées, notifications lues anciennes, historique des travaux — **jamais** de document, d'audit ni de sauvegarde |
+| `sauvegarde` | 6 h | Sauvegarde chiffrée + rotation (24 h / 7 j / 4 sem. / 12 mois), 2 relances |
+| `fraicheur_sauvegarde` | 1 h | Alerte critique si aucune sauvegarde réussie récente |
+| `exercice_pra` | dimanche 04:00 | Test de restauration non destructif enregistré et notifié |
+
+```bash
+python manage.py run_worker --liste           # échéancier
+python manage.py run_worker --travail ocr     # exécution immédiate
+python manage.py charger_modeles_checklist    # modèles de checklist proposés
+```
+
+Garde-fous : aucune automatisation ne coche une pièce, ne valide, n'archive,
+ne supprime un document ni ne suspend un compte. Elles signalent, proposent et
+créent des tâches ; les décisions juridiques restent humaines.
+
+**Checklists** : les modèles (`dossiers/modeles_checklist.json`) sont une
+*proposition* à valider par le notaire (admin Django ou
+`/api/checklist-templates`). À la création d'un dossier, les modèles actifs du
+domaine génèrent sa checklist ; un dépôt dont le type correspond est rattaché
+à l'élément (« reçu, à vérifier ») — la coche reste humaine.
 
 ## Brancher le front
 

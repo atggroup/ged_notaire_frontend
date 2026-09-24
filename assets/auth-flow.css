@@ -359,3 +359,36 @@
 @media (max-width:480px){
   .intro-media{width:min(90vw,300px)}
 }
+
+
+/* ============================================================================
+   Renforts mobiles de l'ecran d'authentification
+   ========================================================================== */
+@media (max-width:560px){
+  /* 16px : en dessous, iOS Safari zoome automatiquement a la mise au point
+     et l'ecran de connexion part de travers des le premier champ. */
+  .inp,.otp-row input,input,select,textarea{font-size:16px}
+  .inp{min-height:48px}
+  /* Champs groupes (sans bordure) : on preserve le style, on rend la zone
+     tactile utilisable. */
+  .field-group > .field .inp,
+  .field-group > .two .field .inp{min-height:34px;padding:6px 0}
+
+  /* Cibles tactiles 44px (WCAG 2.5.5 / recommandation iOS) */
+  .toggle-eye{width:44px;height:44px;right:4px;padding:0;align-items:center;justify-content:center}
+  .btn,.btn-social{min-height:48px}
+  .step-back,.link-btn,.auth-alt button,.auth-alt a{min-height:44px;display:inline-flex;align-items:center}
+  input[type="checkbox"],input[type="radio"]{width:20px;height:20px;flex-shrink:0}
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]){min-height:44px;display:flex;align-items:center;gap:10px}
+
+  /* Aucun debordement horizontal possible */
+  html,body{max-width:100%;overflow-x:hidden}
+  img,svg,video{max-width:100%}
+}
+
+@media (max-width:380px){
+  .otp-row{gap:5px}
+  .otp-row input{min-width:0}
+  .auth-box-head h2{font-size:21px}
+}

@@ -8,6 +8,7 @@ from rest_framework import serializers
 from rest_framework.generics import GenericAPIView
 from audit.services import log_event
 from ged_backend.api import ContractSerializer
+from documents.crypto import decrypt
 from documents.models import Document
 from .models import BackupRun, CabinetSettings
 from .backup_service import run_backup
@@ -57,16 +58,34 @@ class RestoreTestView(APIView):
         backup_checked = False
         if latest_backup and latest_backup.local_path:
             backup_root = Path(settings.BASE_DIR) / latest_backup.local_path
-            manifest_path, db_path = backup_root / "manifest.json", backup_root / "database.json"
-            if not manifest_path.exists() or not db_path.exists():
-                failure = "La dernière sauvegarde complète est incomplète (manifest ou base absente)."
+            manifest_path = backup_root / "manifest.json"
+            if not manifest_path.exists():
+                failure = "La dernière sauvegarde complète est incomplète (manifest absent)."
             else:
                 try:
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                    expected = manifest.get("database", {}).get("sha256")
-                    if expected and hashlib.sha256(db_path.read_bytes()).hexdigest() != expected:
+                    entree_db = manifest.get("database", {})
+                    # Les sauvegardes antérieures au chiffrement de l'instantané
+                    # portaient un « database.json » en clair : on reste capable
+                    # de les vérifier.
+                    db_path = backup_root / entree_db.get("file", "database.json")
+                    if not db_path.exists():
+                        raise ValueError("instantané de la base absent")
+                    octets = db_path.read_bytes()
+                    expected = entree_db.get("sha256")
+                    if expected and hashlib.sha256(octets).hexdigest() != expected:
                         raise ValueError("empreinte de la base de sauvegarde différente")
-                    json.loads(db_path.read_text(encoding="utf-8"))
+                    if entree_db.get("encrypted"):
+                        # Déchiffrer prouve que la clé de l'étude ouvre bien
+                        # cette sauvegarde : sans ce contrôle, un instantané
+                        # illisible passerait pour restaurable.
+                        clair = decrypt(octets, entree_db.get("encryptionKeyId") or None)
+                        attendu_clair = entree_db.get("plaintextSha256")
+                        if attendu_clair and hashlib.sha256(clair).hexdigest() != attendu_clair:
+                            raise ValueError("empreinte du contenu déchiffré différente")
+                    else:
+                        clair = octets
+                    json.loads(clair.decode("utf-8"))
                     backup_checked = True
                 except Exception as exc:
                     failure = f"Sauvegarde non restaurable : {exc}"
@@ -106,6 +125,7 @@ def backup_run_payload(run):
         "localPath": run.local_path,
         "cloudStatus": run.cloud_status,
         "createdAt": run.created_at.isoformat(),
+        "prunedAt": run.pruned_at.isoformat() if run.pruned_at else None,
     }
 
 
@@ -131,7 +151,16 @@ class BackupStatusView(APIView):
         cloud_enabled = bool(getattr(settings, "BACKUP_CLOUD_ENABLED", False))
         cloud_configured = bool(cloud_enabled and getattr(settings, "BACKUP_CLOUD_BUCKET", "") and getattr(settings, "BACKUP_CLOUD_ACCESS_KEY", "") and getattr(settings, "BACKUP_CLOUD_SECRET_KEY", ""))
         last_backup = BackupRun.objects.filter(kind="backup").order_by("-created_at").first()
+        from .backup_service import backup_freshness
+        from .tasks import cles_non_sequestrees
+        etat = backup_freshness()
+        derniere_verif = BackupRun.objects.filter(kind="restore_drill").order_by("-created_at").first()
         return Response({
+            "freshness": {"ok": etat["ok"], "ageHours": round(etat["age"].total_seconds() / 3600, 1) if etat["age"] else None,
+                          "limitHours": round(etat["limit"].total_seconds() / 3600, 1)},
+            "retention": {"daily": settings.BACKUP_RETENTION_DAILY, "weekly": settings.BACKUP_RETENTION_WEEKLY, "monthly": settings.BACKUP_RETENTION_MONTHLY},
+            "lastDrill": backup_run_payload(derniere_verif) if derniere_verif else None,
+            "keyEscrow": {"missingKeyIds": cles_non_sequestrees()},
             "local": {"usedBytes": total_bytes, "documentCount": Document.objects.exclude(statut=Document.Status.DESTROYED).count(), "status": "ready"},
             "cloud": {"configured": cloud_configured, "status": "ready" if cloud_configured else "not_configured"},
             "lastBackup": backup_run_payload(last_backup) if last_backup else None,

@@ -1,0 +1,99 @@
+{
+  "_avertissement": "PROPOSITION à valider par le notaire. La GED ne décide pas des pièces exigées : ajustez ou désactivez chaque ligne (admin Django ou API /api/checklist-templates) avant usage réel.",
+  "modeles": {
+    "VEN": [
+      ["Fiche client de l'acquéreur", "FIC", true],
+      ["Pièce d'identité du vendeur", "CNI", true],
+      ["Pièce d'identité de l'acquéreur", "CNI", true],
+      ["Titre de propriété (ACD / certificat de propriété foncière)", "TIT", true],
+      ["Plan ou extrait cadastral", "CAD", true],
+      ["État foncier / certificat de non-hypothèque", "HYP", true],
+      ["Justificatif de domicile de l'acquéreur", "DOM", false],
+      ["Projet d'acte de vente", "PROJ", false]
+    ],
+    "IMM": [
+      ["Pièce d'identité des parties", "CNI", true],
+      ["Titre de propriété", "TIT", true],
+      ["Plan ou extrait cadastral", "CAD", true],
+      ["État foncier", "HYP", true]
+    ],
+    "FON": [
+      ["Pièce d'identité du demandeur", "CNI", true],
+      ["Titre ou attestation de propriété coutumière", "TIT", true],
+      ["Plan de bornage / extrait cadastral", "CAD", true]
+    ],
+    "SUC": [
+      ["Acte de décès", "ETA", true],
+      ["Pièces d'identité des héritiers", "CNI", true],
+      ["Actes d'état civil établissant la dévolution", "ETA", true],
+      ["Acte de mariage du défunt", "ETA", false],
+      ["Testament éventuel", "ACT", false],
+      ["Titres des biens immobiliers", "TIT", true],
+      ["Attestations bancaires / relevés des avoirs", "ATT", true],
+      ["Déclaration de succession", "DEC", false]
+    ],
+    "DON": [
+      ["Pièce d'identité du donateur", "CNI", true],
+      ["Pièce d'identité du donataire", "CNI", true],
+      ["Justificatif du lien de parenté", "ETA", true],
+      ["Titre de propriété du bien donné", "TIT", true],
+      ["Projet d'acte de donation", "PROJ", false]
+    ],
+    "SOC": [
+      ["Statuts", "STA", true],
+      ["Pièces d'identité des associés et dirigeants", "CNI", true],
+      ["Attestation de dépôt des fonds", "ATT", true],
+      ["Déclaration de souscription et de versement", "DEC", true],
+      ["Justificatif du siège social", "DOM", true],
+      ["Extrait RCCM", "RCC", false]
+    ],
+    "ENT": [
+      ["Pièce d'identité du dirigeant", "CNI", true],
+      ["Extrait RCCM", "RCC", true],
+      ["Statuts à jour", "STA", true]
+    ],
+    "BAI": [
+      ["Pièce d'identité du bailleur", "CNI", true],
+      ["Pièce d'identité du locataire", "CNI", true],
+      ["Titre de propriété ou mandat de gestion", "TIT", true],
+      ["Projet de bail", "PROJ", false]
+    ],
+    "PRO": [
+      ["Pièce d'identité du mandant", "CNI", true],
+      ["Pièce d'identité du mandataire", "CNI", true],
+      ["Projet de procuration", "PROJ", false]
+    ],
+    "MAT": [
+      ["Actes de naissance des époux", "ETA", true],
+      ["Acte de mariage", "ETA", true],
+      ["Pièces d'identité des époux", "CNI", true]
+    ],
+    "FAM": [
+      ["Pièces d'identité des parties", "CNI", true],
+      ["Actes d'état civil", "ETA", true]
+    ],
+    "DIV": [
+      ["Jugement de divorce", "JUG", true],
+      ["Pièces d'identité des ex-époux", "CNI", true],
+      ["Titres des biens à partager", "TIT", true]
+    ],
+    "HYP": [
+      ["Pièce d'identité de l'emprunteur", "CNI", true],
+      ["Contrat ou offre de prêt", "CON", true],
+      ["Titre du bien grevé", "TIT", true],
+      ["État foncier", "HYP", true]
+    ],
+    "TES": [
+      ["Pièce d'identité du testateur", "CNI", true],
+      ["Acte de naissance du testateur", "ETA", false]
+    ],
+    "PAR": [
+      ["Pièces d'identité des copartageants", "CNI", true],
+      ["Titres des biens à partager", "TIT", true]
+    ],
+    "IND": [
+      ["Pièces d'identité des indivisaires", "CNI", true],
+      ["Titres des biens indivis", "TIT", true]
+    ]
+  }
+}

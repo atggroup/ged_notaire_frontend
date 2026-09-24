@@ -1,0 +1,51 @@
+# Validation sur un VRAI PostgreSQL 16 (même version que la production),
+# dans une base JETABLE : aucune donnée de l'étude n'est touchée.
+#
+#   docker compose -f docker-compose.test.yml run --rm tests
+#   docker compose -f docker-compose.test.yml down -v
+#
+# ou, en une commande :  sh deploy/valider_postgres.sh
+#
+# Vérifie : migrations sur base vide, absence de migration manquante, puis
+# l'ensemble des tests (dont les tests de concurrence propres à PostgreSQL).
+name: ged-validation
+
+services:
+  db_test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ged_validation
+      POSTGRES_USER: ged_validation
+      POSTGRES_PASSWORD: validation-jetable
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ged_validation -d ged_validation"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  tests:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    depends_on:
+      db_test:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ged_validation:validation-jetable@db_test:5432/ged_validation
+      DJANGO_SETTINGS_MODULE: ged_backend.settings.dev
+      PYTHONDONTWRITEBYTECODE: "1"
+    # Le dépôt entier en lecture seule : certains tests contrôlent le frontal
+    # et la configuration nginx.
+    volumes:
+      - ../:/workspace:ro
+    working_dir: /workspace/backend
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        set -e;
+        python manage.py migrate --noinput;
+        python manage.py makemigrations --check --dry-run;
+        python manage.py check;
+        python -m pytest -q -p no:cacheprovider

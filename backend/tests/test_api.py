@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 from accounts.models import InviteCode, OTPCode, User
 from audit.models import AuditLog
 from documents.models import Document
-from dossiers.models import Dossier
+from dossiers.models import Dossier, DossierAssignment
 from notifications.models import Notification
 from settings_app.models import BackupRun
 
@@ -41,7 +41,7 @@ def test_invited_registration_creates_the_role_authorised_by_notary():
     assert start.status_code == 200
     OTPCode.objects.create(email="awa@test.ci", purpose="register", code_hash=make_password("123456"), expires_at=timezone.now() + timedelta(minutes=5))
     assert client.post("/api/auth/register/verify-code", {"email": "awa@test.ci", "code": "123456"}, format="json").status_code == 200
-    completed = client.post("/api/auth/register/complete", {"email": "awa@test.ci", "password": "Secure123"}, format="json")
+    completed = client.post("/api/auth/register/complete", {"email": "awa@test.ci", "password": "Etude-Kone-2026"}, format="json")
     assert completed.status_code == 201
     assert completed.data["role"] == "clerc"
     assert User.objects.get(email="awa@test.ci").role == "clerc"
@@ -93,6 +93,11 @@ def test_scan_requires_an_existing_dossier_and_cannot_set_confidentiality():
     response = client.post("/api/documents/upload", {"fichier": SimpleUploadedFile("piece.jpg", b"\xff\xd8\xff\xe0x", content_type="image/jpeg"), "type": "Vente", "client": "Mme Kouamé Awa"}, format="multipart")
     assert response.status_code == 400
     folder = Dossier.objects.create(reference="VEN-2026-00001", domaine="VEN", nom="Vente Awa", client="Mme Kouamé Awa", niveau_de_confidentialite="Restreint", created_by=clerc)
+    # Déposer dans un dossier suppose d'y avoir accès : le dossier est
+    # « Restreint », il faut donc une affectation (cf. test_correctifs_audit).
+    response = client.post("/api/documents/upload", {"fichier": SimpleUploadedFile("piece.jpg", b"\xff\xd8\xff\xe0x", content_type="image/jpeg"), "type": "Vente", "dossier": folder.reference}, format="multipart")
+    assert response.status_code == 400
+    DossierAssignment.objects.create(dossier=folder, user=clerc, role="clerc_responsable", assigned_by=clerc)
     response = client.post("/api/documents/upload", {"fichier": SimpleUploadedFile("piece.jpg", b"\xff\xd8\xff\xe0x", content_type="image/jpeg"), "type": "Vente", "dossier": folder.reference, "niveau": "Confidentiel"}, format="multipart")
     assert response.status_code == 201
     assert response.data["reference"].startswith("DOC_")
@@ -132,7 +137,9 @@ def test_document_governance_and_dossier_operations():
     assert created.status_code == 201
     ref = created.data["reference"]
     assert client.post("/api/documents/%s/trash" % ref, {}, format="json").status_code == 200
-    assert client.post("/api/documents/%s/request-destruction" % ref, {}, format="json").status_code == 200
+    # Le motif est obligatoire : une destruction doit être justifiable a posteriori.
+    assert client.post("/api/documents/%s/request-destruction" % ref, {}, format="json").status_code == 400
+    assert client.post("/api/documents/%s/request-destruction" % ref, {"motif": "Doublon de numérisation."}, format="json").status_code == 200
     assert client.post("/api/documents/%s/restore" % ref, {}, format="json").status_code == 200
     saved = client.post("/api/searches/saved", {"name": "Ventes Awa", "filters": {"client": "Awa", "niveau": "Confidentiel"}}, format="json")
     assert saved.status_code == 201
@@ -240,7 +247,10 @@ def test_dossier_detail_includes_filtered_documents_and_tasks():
     # le "Très confidentiel" exige une permission explicite, distincte de
     # l'affectation au dossier (voir permissions_app.access.has_document_access).
     assert len(clerc_detail.data["documents"]) == 1
-    assert clerc_detail.data["documents"][0]["niveau_de_confidentialite"] == "Standard"
+    # La pièce hérite du niveau de son dossier (plancher) : « Restreint » ici,
+    # ce que l'affectation du clerc suffit à ouvrir — contrairement au
+    # « Très confidentiel », qui exige une permission nominative.
+    assert clerc_detail.data["documents"][0]["niveau_de_confidentialite"] == "Restreint"
     assert len(clerc_detail.data["tasks"]) == 1
 
 
@@ -323,7 +333,7 @@ def test_destroy_requires_authorization_and_removes_binary(tmp_path):
     stored_name = doc.fichier.name
     assert client.post(f"/api/documents/{ref}/destroy", {}, format="json").status_code == 409
     assert client.post(f"/api/documents/{ref}/trash", {}, format="json").status_code == 200
-    assert client.post(f"/api/documents/{ref}/request-destruction", {}, format="json").status_code == 200
+    assert client.post(f"/api/documents/{ref}/request-destruction", {"motif": "Pièce hors périmètre."}, format="json").status_code == 200
     assert client.post(f"/api/documents/{ref}/authorize-destruction", {}, format="json").status_code == 200
     assert client.post(f"/api/documents/{ref}/destroy", {}, format="json").status_code == 200
     doc.refresh_from_db()
@@ -388,7 +398,9 @@ def test_legal_hold_blocks_every_sensitive_action_on_a_frozen_dossier():
     # Le document original n'a subi aucune altération.
     doc = Document.objects.get(reference=ref)
     assert doc.statut == Document.Status.TO_INDEX
-    assert doc.niveau_de_confidentialite == Document.Confidentiality.STANDARD
+    # Le dossier de ce scénario est « Restreint » : la pièce ne peut pas être
+    # enregistrée en deçà (ged_backend.confidentialite).
+    assert doc.niveau_de_confidentialite == Document.Confidentiality.RESTRICTED
     assert doc.fichier.name != ""
 
 

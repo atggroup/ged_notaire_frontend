@@ -1,0 +1,30 @@
+# Le Dockerfile fait « COPY . /app/frontend » depuis la racine du dépôt :
+# sans ce fichier, les secrets de production, l'historique git et les
+# sauvegardes de l'étude se retrouvent figés dans une couche de l'image —
+# lisible par quiconque obtient l'image, même si le conteneur ne les sert pas.
+
+# Secrets
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.prod.example
+
+# Historique et outillage local
+.git/
+.gitignore
+.dockerignore
+.claude/
+.venv/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+
+# Données de l'étude : jamais dans une image, elles vivent dans des volumes
+backend/media/
+backend/backup_store/
+backend/staticfiles/
+backend/db.sqlite3
+
+# Notes internes sans usage à l'exécution
+*.md
+!README.md

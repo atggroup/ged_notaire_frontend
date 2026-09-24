@@ -2,12 +2,14 @@
 <html lang="fr" data-theme="clerc">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
 <title>GED Notaire — Document</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<meta name="theme-color" content="#F6F9FD">
+<link rel="stylesheet" href="../assets/responsive.css">
 </head>
 <body data-theme="clerc" data-role="clerc">
   <div class="app">
@@ -40,7 +42,7 @@
             <div class="kv"><span>Type d'acte</span><b>Hypothèque</b></div>
             <div class="kv"><span>Confidentialité</span><b>Confidentiel</b></div>
             <div class="kv"><span>Empreinte SHA-256</span><b style="font-size:11px">a17f…9c3e</b></div>
-            <div class="kv"><span>Format</span><b>PDF/A-2b</b></div>
+            <div class="kv"><span>Format</span><b id="kvFormat">—</b></div>
             <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px"><a class="btn pri block lg dv-view-btn" href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/></svg> Voir en plein écran</a><a class="btn block" href="#" id="btnOCR"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a2 2 0 0 1 2-2h2M16 3h2a2 2 0 0 1 2 2v2M20 17v2a2 2 0 0 1-2 2h-2M8 21H6a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg> Lancer l'OCR</a><a class="btn block" href="#" id="btnQualityCheck"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/><path d="M2 12a10 10 0 1 0 20 0 10 10 0 0 0-20 0"/></svg> Contrôle qualité</a><a class="btn block" href="#" id="btnTelecharger" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg> Télécharger</a><a class="btn block" href="#" id="btnDemanderAcces"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg> Demander l'accès</a></div>
           </div>
           <div class="card" style="margin-top:16px"><div class="sec-h"><h2>Versions</h2></div>
@@ -52,9 +54,10 @@
       </div>
     </div>
   </div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="../assets/vendor/pdf.min.js"></script>
   <script src="assets/pdf-viewer.js"></script>
   <script src="assets/config.js"></script>
   <script src="assets/app.js"></script>
+<script src="../assets/responsive.js"></script>
 </body>
 </html>

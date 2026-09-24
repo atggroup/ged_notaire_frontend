@@ -1,3 +1,21 @@
 
+# Secrets : tout fichier .env*, sauf les modèles d'exemple.
 backend/.env
-backend/.env.prod
+backend/.env.*
+!backend/.env.example
+!backend/.env.prod.example
+# Base SQLite de développement locale.
+backend/db.sqlite3
+# Paquet de récupération des clés : à conserver hors du projet.
+ged-key-recovery*.json
+
+# Artefacts générés par l'exécution locale (compilation Python, fichiers déposés)
+__pycache__/
+*.py[cod]
+backend/media/
+.pytest_cache/
+
+# Sauvegardes : contiennent l'instantane chiffre de la base et les binaires
+# documentaires. Rien de tout cela n'a sa place dans l'historique git.
+backend/backup_store/
+backup_store/

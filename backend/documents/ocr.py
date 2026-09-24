@@ -91,6 +91,10 @@ def extract_text(data: bytes, content_type: str) -> tuple[str, str]:
     installation usable while production can install the OCR tools."""
     if content_type == "application/pdf":
         return _extract_pdf(data)
+    from .formats import MIMES_BUREAUTIQUES, extraire_texte_bureautique
+    if content_type in MIMES_BUREAUTIQUES:
+        texte = extraire_texte_bureautique(data, content_type)
+        return texte, "extrait" if texte else "indisponible"
     if content_type.startswith("image/"):
         try:
             from PIL import Image

@@ -23,3 +23,6 @@ class BackupRun(models.Model):
     local_path = models.CharField(max_length=500, blank=True)
     cloud_status = models.CharField(max_length=24, default="not_configured")
     created_at = models.DateTimeField(auto_now_add=True)
+    # Rotation : date à laquelle le répertoire de sauvegarde a été supprimé
+    # par la politique de rétention (la ligne, elle, est conservée).
+    pruned_at = models.DateTimeField(null=True, blank=True)

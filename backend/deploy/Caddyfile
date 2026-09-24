@@ -1,0 +1,28 @@
+# Porte d'entrée HTTPS de la GED.
+#
+# Caddy obtient et renouvelle SEUL le certificat (Let's Encrypt) pour le
+# domaine indiqué dans GED_DOMAIN (.env.prod). Conditions : le nom de domaine
+# pointe vers ce serveur (enregistrement DNS A) et les ports 80 et 443 sont
+# ouverts. Le port 80 ne sert qu'à la validation du certificat et à la
+# redirection vers HTTPS.
+#
+# Essai local : GED_DOMAIN=localhost — Caddy émet alors un certificat interne
+# (le navigateur affichera un avertissement, c'est attendu).
+{
+	email {$GED_ACME_EMAIL}
+}
+
+{$GED_DOMAIN} {
+	encode gzip
+
+	header {
+		# Le navigateur refusera désormais tout accès non chiffré au domaine.
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# Caddy écrit lui-même X-Forwarded-For (adresse réelle) et
+	# X-Forwarded-Proto (https) : les valeurs envoyées par un client sont
+	# ignorées. nginx n'accepte ces en-têtes que de Caddy (172.28.0.10).
+	reverse_proxy nginx:80
+}

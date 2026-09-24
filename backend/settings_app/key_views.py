@@ -39,7 +39,10 @@ class RecoveryExportView(APIView):
         if not admin(request): return Response({"detail":"Réservé au notaire."}, status=403)
         try: blob=recovery_export(str(request.data.get("passphrase","")))
         except ValueError as exc: return Response({"detail":str(exc)}, status=400)
-        log_event(request,"encryption_keys_recovery_exported","encryption","recovery")
+        # Les identifiants (jamais les clés) sont tracés : le contrôle de
+        # séquestre vérifie ainsi que chaque clé en service a bien été exportée.
+        from documents.crypto import _keyring
+        log_event(request,"encryption_keys_recovery_exported","encryption","recovery", metadata={"keyIds": sorted(_keyring())})
         r=HttpResponse(blob, content_type="application/json"); r["Content-Disposition"]='attachment; filename="ged-key-recovery.json"'; return r
 
 class RecoveryImportView(APIView):

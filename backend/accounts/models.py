@@ -52,12 +52,27 @@ class User(AbstractUser):
     # Incremented whenever an administrator revokes sessions.  It is embedded
     # in each access token so a previously issued token stops working at once.
     session_version = models.PositiveIntegerField(default=1)
+    # Le second facteur est exigé selon le RISQUE (notaire, ou détenteur d'un
+    # accès confidentiel) et cette décision est prise à la connexion. Retenir
+    # ici si la session courante a franchi un second facteur permet de la
+    # révoquer le jour où une habilitation confidentielle lui est accordée —
+    # sans quoi un jeton obtenu par simple mot de passe ouvrirait, jusqu'à 8 h
+    # durant, des pièces que la politique réserve aux sessions MFA.
+    session_mfa_verified = models.BooleanField(default=False)
     failed_login_attempts = models.PositiveSmallIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
     # Autorisation explicite, accordée par le notaire à un collaborateur précis,
     # pour numériser des documents. Sans effet pour les autres rôles (le
     # notaire et le clerc peuvent déjà numériser de par leur rôle).
     can_scan = models.BooleanField(default=False)
+    # Second facteur par application d'authentification (TOTP). Secret
+    # chiffré ; `totp_last_counter` interdit le rejeu d'un code déjà accepté ;
+    # codes de secours conservés sous forme d'empreintes, à usage unique.
+    totp_secret = models.TextField(blank=True)
+    totp_pending_secret = models.TextField(blank=True)
+    totp_enabled_at = models.DateTimeField(null=True, blank=True)
+    totp_last_counter = models.BigIntegerField(null=True, blank=True)
+    totp_recovery_hashes = models.JSONField(default=list, blank=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)
     deactivated_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="deactivated_users")
     departure_reason = models.TextField(blank=True)
@@ -72,6 +87,10 @@ class User(AbstractUser):
     @property
     def is_google_linked(self) -> bool:
         return bool(self.google_sub)
+
+    @property
+    def totp_enabled(self) -> bool:
+        return bool(self.totp_enabled_at and self.totp_secret)
 
 
 class InviteCode(models.Model):

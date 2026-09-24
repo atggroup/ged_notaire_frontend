@@ -20,7 +20,10 @@
   "use strict";
 
   var PDFJS_VERSION = "3.11.174";
-  var WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/" + PDFJS_VERSION + "/pdf.worker.min.js";
+  // Servi par l'application elle-meme : une etude notariale ne doit dependre
+  // ni d'un CDN tiers (chaine d'approvisionnement) ni d'un acces Internet
+  // pour consulter ses propres actes.
+  var WORKER_SRC = "../assets/vendor/pdf.worker.min.js";
 
   function escapeHtml(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -201,7 +204,9 @@
     ensureWorker();
 
     return toArrayBuffer(opts).then(function (buf) {
-      return window.pdfjsLib.getDocument({ data: buf }).promise;
+      // isEvalSupported:false neutralise CVE-2024-4367 (exécution de code par un PDF
+      // piégé via la compilation de polices) ; la CSP stricte bloque aussi eval.
+      return window.pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
     }).then(function (pdf) {
       state.pdf = pdf;
       els.pageCount.textContent = String(pdf.numPages);
@@ -263,12 +268,28 @@
     });
   }
 
+  // Word / Excel : le navigateur ne sait pas les afficher. Plutôt qu'une
+  // zone vide ou une erreur, une fiche claire avec le téléchargement.
+  function mountOffice(container, opts, contentType) {
+    var excel = contentType.indexOf("spreadsheetml") >= 0;
+    var url = opts.blob ? URL.createObjectURL(opts.blob) : opts.url;
+    var nom = opts.filename || (excel ? "document.xlsx" : "document.docx");
+    container.innerHTML =
+      '<div class="doc-viewer" style="min-height:360px;display:grid;place-items:center;text-align:center;padding:32px">' +
+      '<div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Document ' + (excel ? "Excel" : "Word") + '</div>' +
+      '<div class="muted" style="font-size:13px;max-width:360px;margin:0 auto 16px">L’aperçu n’est pas disponible dans le navigateur pour ce format. ' +
+      'Téléchargez-le pour l’ouvrir (son ouverture a été enregistrée au journal).</div>' +
+      '<a class="btn pri" download="' + escapeHtml(nom) + '" href="' + url + '">Télécharger</a></div></div>';
+    return Promise.resolve();
+  }
+
   function mount(container, opts) {
     opts = opts || {};
     var onError = typeof opts.onError === "function" ? opts.onError : function () {};
     var contentType = (opts.contentType || (opts.blob && opts.blob.type) || "").toLowerCase();
 
-    var task = contentType.indexOf("image/") === 0 ? mountImage(container, opts) : mountPdf(container, opts);
+    var task = contentType.indexOf("officedocument") >= 0 ? mountOffice(container, opts, contentType)
+      : contentType.indexOf("image/") === 0 ? mountImage(container, opts) : mountPdf(container, opts);
     task.catch(function (err) { onError(err); });
     return task;
   }
