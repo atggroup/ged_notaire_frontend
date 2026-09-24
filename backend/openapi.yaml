@@ -417,12 +417,6 @@ paths:
       responses:
         '200': {description: Sauvegarde créée}
         '403': {description: Accès refusé}
-  /api/backups/restore-test:
-    post:
-      summary: Tester la restauration de la dernière sauvegarde
-      responses:
-        '200': {description: Test réussi}
-        '409': {description: Test échoué}
   /api/key-management/status:
     get:
       summary: État non secret du trousseau de chiffrement
@@ -439,6 +433,151 @@ paths:
     post:
       summary: Vérifier un paquet de récupération chiffré
 
+  # --- Automatisations (app core) — réservé au notaire -----------------------
+  /api/automation/jobs:
+    get:
+      summary: État des travaux automatiques et des exécutants
+      description: >
+        Pour chaque travail : libellé, groupe, fréquence, dernière exécution
+        (statut, durée, volume, message), prochaine échéance estimée, demande
+        en attente. `workers` liste les exécutants et leur signe de vie.
+      security: [{jwtAuth: []}]
+      responses:
+        '200': {description: "{workers: [...], jobs: [...]}"}
+        '403': {description: Réservé au notaire}
+  /api/automation/jobs/{name}/runs:
+    parameters:
+      - {name: name, in: path, required: true, schema: {type: string}, example: rappels_taches}
+    get:
+      summary: Historique (30 dernières exécutions) d'un travail
+      security: [{jwtAuth: []}]
+      responses:
+        '200': {description: Liste des exécutions}
+        '403': {description: Réservé au notaire}
+        '404': {description: Travail inconnu}
+    post:
+      summary: Demander une exécution immédiate
+      description: >
+        Crée une exécution « demandé », prise en charge par l'exécutant en
+        quelques secondes. Rien ne s'exécute dans la requête HTTP. Idempotent :
+        une demande déjà en attente est renvoyée (200) au lieu d'être dupliquée.
+      security: [{jwtAuth: []}]
+      responses:
+        '202': {description: Demande enregistrée}
+        '200': {description: Une demande était déjà en attente}
+        '403': {description: Réservé au notaire}
+        '404': {description: Travail inconnu}
+
+  # --- Surveillance de sécurité ------------------------------------------------
+  /api/security/alerts:
+    get:
+      summary: Alertes levées par la surveillance automatique
+      parameters:
+        - {name: status, in: query, schema: {type: string, enum: [ouverte, traitée]}}
+        - {name: limit, in: query, schema: {type: integer, default: 100, maximum: 500}}
+      security: [{jwtAuth: []}]
+      responses:
+        '200': {description: "{open: n, entries: [...]}"}
+        '403': {description: Réservé au notaire}
+  /api/security/alerts/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+    patch:
+      summary: Marquer une alerte traitée (commentaire obligatoire, journalisé)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, note]
+              properties:
+                status: {type: string, enum: [traitée]}
+                note: {type: string, example: "Export vérifié avec le collaborateur."}
+      security: [{jwtAuth: []}]
+      responses:
+        '200': {description: Alerte traitée}
+        '400': {description: Statut ou commentaire manquant}
+        '403': {description: Réservé au notaire}
+        '404': {description: Alerte introuvable}
+        '409': {description: Alerte déjà traitée}
+
+  # --- Modèles de checklist par domaine ---------------------------------------
+  /api/checklist-templates:
+    get:
+      summary: Modèles de checklist (notaire, clerc)
+      parameters:
+        - {name: domaine, in: query, schema: {type: string}, example: VEN}
+      security: [{jwtAuth: []}]
+      responses:
+        '200': {description: Liste des modèles}
+        '403': {description: Accès refusé}
+    post:
+      summary: Créer un modèle (notaire)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domaine, label]
+              properties:
+                domaine: {type: string, example: VEN}
+                label: {type: string, example: "Certificat d'urbanisme"}
+                typeCode: {type: string, example: CER}
+                required: {type: boolean}
+                reminderDays: {type: integer, nullable: true}
+                order: {type: integer}
+                active: {type: boolean}
+      security: [{jwtAuth: []}]
+      responses:
+        '201': {description: Modèle créé (journalisé)}
+        '400': {description: Donnée invalide}
+        '403': {description: Réservé au notaire}
+        '409': {description: Modèle déjà existant pour ce domaine}
+    patch:
+      summary: Modifier un modèle (notaire ; ancienne et nouvelle valeur journalisées)
+      security: [{jwtAuth: []}]
+      responses:
+        '200': {description: Modèle modifié}
+        '404': {description: Modèle introuvable}
+
+
+  # --- Compte : mot de passe et application d'authentification ---------------
+  /api/me/password:
+    post:
+      summary: Changer son mot de passe (ferme les autres sessions, renvoie un jeton neuf)
+      security: [{jwtAuth: []}]
+      responses:
+        '200': {description: Mot de passe modifié}
+        '400': {description: Mot de passe actuel incorrect ou nouveau mot de passe refusé}
+  /api/auth/totp:
+    get:
+      summary: État de l'application d'authentification
+      security: [{jwtAuth: []}]
+      responses: {'200': {description: "{enabled, enabledAt, recoveryCodesRemaining}"}}
+  /api/auth/totp/setup:
+    post:
+      summary: Préparer l'activation (mot de passe exigé) — renvoie la clé et le lien otpauth://
+      security: [{jwtAuth: []}]
+      responses: {'200': {description: Clé à saisir}, '400': {description: Mot de passe incorrect}}
+  /api/auth/totp/confirm:
+    post:
+      summary: Activer avec un premier code — renvoie 10 codes de secours (affichés une fois)
+      security: [{jwtAuth: []}]
+      responses: {'200': {description: Activée}, '400': {description: Code incorrect}}
+  /api/auth/totp/disable:
+    post:
+      summary: Désactiver (mot de passe + code exigés, notaires prévenus)
+      security: [{jwtAuth: []}]
+      responses: {'200': {description: Désactivée}, '400': {description: Mot de passe ou code incorrect}}
+  /api/auth/mfa/verify:
+    post:
+      summary: Second facteur — code e-mail, code d'application ou code de secours ; `challenge` (reçu à l'étape 1) exigé pour l'application
+      responses: {'200': {description: Session ouverte}, '400': {description: Code ou défi invalide}, '429': {description: Compte verrouillé}}
+  /api/checklist-templates/proposes:
+    post:
+      summary: Charger les modèles de checklist proposés (sans écraser l'existant) — notaire
+      security: [{jwtAuth: []}]
+      responses: {'201': {description: Modèles ajoutés}, '200': {description: Déjà chargés}, '403': {description: Réservé au notaire}}
 
 components:
   securitySchemes:

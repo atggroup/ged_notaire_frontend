@@ -7,3 +7,7 @@ DEBUG = env.bool("DEBUG", default=False)
 if not SECRET_KEY:
     SECRET_KEY = secrets.token_urlsafe(48)
 SERVE_FRONTEND = env.bool("SERVE_FRONTEND", default=True)
+
+# En développement, admin et documentation de l'API suivent DEBUG.
+DJANGO_ADMIN_ENABLED = env.bool("DJANGO_ADMIN_ENABLED", default=DEBUG)
+API_DOCS_ENABLED = env.bool("API_DOCS_ENABLED", default=DEBUG)

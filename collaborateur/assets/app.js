@@ -6,6 +6,61 @@
   var page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   var params = new URLSearchParams(location.search);
 
+  /* ---------------- Skeleton de chargement ----------------
+     Avant même le premier appel API, on remplace tout contenu figé dans le
+     HTML (texte « Chargement… » ou fiches d'exemple) par un skeleton animé :
+     ainsi aucune donnée fictive ne s'affiche à l'écran, même un instant, en
+     attendant la réponse du serveur. Les fonctions renderXxx() déjà
+     existantes plus bas écrasent ce skeleton dès que les données réelles
+     arrivent (ou l'état vide / l'état d'erreur, selon le cas). En mode démo
+     (useMock:true) on ne touche à rien : le contenu d'exemple reste affiché
+     tel quel, comme avant. */
+  (function renderInitialSkeletons() {
+    if (cfg.useMock) return;
+    function bar(w, cls) {
+      return '<span class="skel-block skel-line' + (cls ? " " + cls : "") + '" style="width:' + (w || "70%") + '"></span>';
+    }
+    function docCard() {
+      return '<div class="doc skel-doc" aria-hidden="true">' +
+        '<div class="skel-block skel-thumb" style="height:118px"></div>' +
+        bar("78%", "lg") + bar("52%", "sm") +
+        '<div class="row" style="display:flex;align-items:center;margin-top:12px;gap:10px">' + bar("34%") +
+        '<span class="skel-block skel-avatar" style="width:32px;height:32px;margin-left:auto"></span></div></div>';
+    }
+    function row(cols) {
+      var tds = "";
+      for (var i = 0; i < cols; i++) tds += "<td>" + bar(i === cols - 1 ? "26px" : (i === 0 ? "78%" : "58%")) + "</td>";
+      return '<tr class="skel-row" aria-hidden="true">' + tds + "</tr>";
+    }
+    function mini() {
+      return '<div class="skel-mini" aria-hidden="true"><span class="skel-block skel-avatar" style="width:36px;height:36px"></span>' + bar("62%") + "</div>";
+    }
+    var docsHost = document.querySelector(".docs");
+    if (docsHost && (page.indexOf("index") === 0 || page.indexOf("documents") === 0 || page.indexOf("recherche") === 0)) {
+      docsHost.innerHTML = Array(6).fill(0).map(docCard).join("");
+    }
+    [["dossiersBody", 6], ["usersBody", 4], ["permissionsBody", 6], ["accessRequestsBody", 5], ["queueBody", 5], ["backupHistoryBody", 4]].forEach(function (pair) {
+      var body = document.getElementById(pair[0]);
+      if (body) body.innerHTML = Array(4).fill(0).map(function () { return row(pair[1]); }).join("");
+    });
+    ["notificationsList", "savedSearchesList", "importantAlertsList"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = Array(3).fill(0).map(mini).join("");
+    });
+    if (page.indexOf("journal-audit") === 0) {
+      var auditCard = document.querySelector(".wrap .card");
+      if (auditCard) auditCard.innerHTML = Array(5).fill(0).map(mini).join("");
+    }
+    if (page.indexOf("document-detail") === 0) {
+      var title = document.querySelector(".two h3");
+      if (title) title.innerHTML = bar("58%", "lg");
+    }
+    var access = document.getElementById("accessRequestList");
+    if (access) access.innerHTML = '<span class="skel-block skel-avatar" style="width:36px;height:36px"></span>' + bar("60%");
+    var alertsEl = document.getElementById("dashboardAlerts");
+    if (alertsEl) alertsEl.innerHTML = '<span class="skel-block skel-avatar" style="width:36px;height:36px"></span>' + bar("60%");
+  })();
+
   document.documentElement.setAttribute("data-theme", cfg.theme || cfg.role);
   document.body.setAttribute("data-theme", cfg.theme || cfg.role);
   document.body.setAttribute("data-role", cfg.role);
@@ -24,6 +79,31 @@
     var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
     if (!parts.length) return "GD";
     return (parts[0][0] + (parts[1] ? parts[1][0] : parts[0][1] || "")).toUpperCase();
+  }
+  /* Déconnexion après inactivité (30 min par défaut, cfg.inactivityMinutes).
+     Un poste resté ouvert à l'accueil de l'étude donnait accès aux actes
+     pendant toute la durée du jeton (8 h). L'activité est partagée entre les
+     onglets : travailler dans l'un garde les autres ouverts. */
+  function surveillerInactivite() {
+    var limite = (Number(cfg.inactivityMinutes) || 30) * 60000;
+    var CLE = "ged_derniere_activite";
+    function marquer() { try { localStorage.setItem(CLE, String(Date.now())); } catch (e) {} }
+    var dernier = 0;
+    ["click", "keydown", "mousemove", "touchstart", "scroll"].forEach(function (evt) {
+      document.addEventListener(evt, function () {
+        var maintenant = Date.now();
+        if (maintenant - dernier > 15000) { dernier = maintenant; marquer(); }
+      }, { passive: true, capture: true });
+    });
+    marquer();
+    setInterval(function () {
+      var derniere = 0;
+      try { derniere = Number(localStorage.getItem(CLE) || 0); } catch (e) {}
+      if (derniere && Date.now() - derniere > limite) {
+        clearSession();
+        location.href = "../login.html?expire=inactivite";
+      }
+    }, 20000);
   }
   function requireSession() {
     var s = getSession();
@@ -74,6 +154,13 @@
 
   var toastHost = document.createElement("div");
   toastHost.className = "toast-host";
+  // Les toasts portent l'essentiel du retour utilisateur (succès, refus,
+  // message d'erreur du serveur). Sans région « live », un lecteur d'écran
+  // ne les annonce jamais : l'utilisateur non-voyant agit sans savoir si
+  // l'action a abouti. `polite` n'interrompt pas la lecture en cours.
+  toastHost.setAttribute("role", "status");
+  toastHost.setAttribute("aria-live", "polite");
+  toastHost.setAttribute("aria-atomic", "false");
   document.body.appendChild(toastHost);
 
   function toast(message, kind) {
@@ -159,7 +246,19 @@
       if (res.status === 401) throw new Error("Session expirée.");
       if (res.status === 403) throw new Error("Droits insuffisants.");
       return res.json().catch(function () { return {}; }).then(function (data) {
-        if (!res.ok) throw new Error(data.detail || "Le document n'a pas pu être archivé.");
+        if (!res.ok) {
+          var message = "Le document n'a pas pu être archivé.";
+          if (data && typeof data === "object") {
+            if (typeof data.detail === "string") message = data.detail;
+            else if (Array.isArray(data.non_field_errors) && data.non_field_errors.length) message = data.non_field_errors[0];
+            else {
+              for (var key in data) {
+                if (Object.prototype.hasOwnProperty.call(data, key) && Array.isArray(data[key]) && data[key].length) { message = data[key][0]; break; }
+              }
+            }
+          }
+          throw new Error(message);
+        }
         return data;
       });
     }).catch(function (err) { toast(err.message || "Échec de l'envoi.", "err"); throw err; });
@@ -281,6 +380,10 @@
     btn.addEventListener("click", function () { app.classList.toggle("nav-open"); });
     back.addEventListener("click", close);
     document.querySelectorAll(".rail a").forEach(function (a) { a.addEventListener("click", close); });
+    document.querySelectorAll(".rail [data-cap]").forEach(function (a) {
+      if (!can(a.getAttribute("data-cap"))) a.style.display = "none";
+    });
+  }
 
   /* ----------------------------------------------------------------
      Info-bulles du menu latéral : en position:fixed (et non plus
@@ -332,10 +435,6 @@
     window.addEventListener("orientationchange", sync);
     if (window.ResizeObserver) new ResizeObserver(sync).observe(top);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(sync);
-  }
-    document.querySelectorAll(".rail [data-cap]").forEach(function (a) {
-      if (!can(a.getAttribute("data-cap"))) a.style.display = "none";
-    });
   }
 
   function setupSearch() {
@@ -503,6 +602,105 @@
     loadSavedSearches();
   }
 
+  /* Second facteur par application d'authentification (TOTP).
+     Remplace l'interrupteur « Activée / Désactivée » qui ne commandait rien :
+     l'écran affiche l'état réel et guide l'activation pas à pas. */
+  function setupSecuriteConnexion() {
+    var zone = document.getElementById("totpZone");
+    if (!zone) return;
+    function afficher(etat) {
+      if (etat.enabled) {
+        zone.innerHTML = '<span class="b green">Activée</span> depuis le ' + escapeHtml(new Date(etat.enabledAt).toLocaleDateString("fr-FR")) +
+          ' · ' + etat.recoveryCodesRemaining + ' code(s) de secours restant(s).<br>' +
+          '<button type="button" class="btn" id="totpDesactiver" style="margin-top:10px">Désactiver</button>';
+        document.getElementById("totpDesactiver").addEventListener("click", desactiver);
+      } else {
+        zone.innerHTML = '<span class="b warn">Non activée</span> Votre second facteur repose sur l\'e-mail : si votre messagerie ' +
+          'était compromise, votre compte le serait aussi.<br>' +
+          '<button type="button" class="btn pri" id="totpActiver" style="margin-top:10px">Activer l\'application d\'authentification</button>';
+        document.getElementById("totpActiver").addEventListener("click", activer);
+      }
+    }
+    function charger() { return api("GET", "/auth/totp").then(afficher).catch(function () { zone.textContent = "État indisponible."; }); }
+    function echec(err, defaut) { toast((err && err.message) || defaut, "err"); throw err; }
+    function activer() {
+      openModal({
+        title: "Activer l'application d'authentification", ok: "Continuer",
+        bodyHtml: '<p>Par sécurité, confirmez d\'abord votre mot de passe.</p>' +
+          '<div class="field"><label>Mot de passe</label><input class="inp" type="password" name="password" autocomplete="current-password"></div>',
+        onOk: function (donnees) {
+          return api("POST", "/auth/totp/setup", { password: donnees.password || "" }).then(function (cle) {
+            setTimeout(function () { etapeCle(cle); }, 0);
+          }).catch(function (err) { echec(err, "Mot de passe incorrect."); });
+        }
+      });
+    }
+    function etapeCle(cle) {
+      openModal({
+        title: "Ajoutez la GED dans votre application", ok: "Vérifier le code",
+        bodyHtml: '<ol style="font-size:13px;line-height:1.6;padding-left:18px;margin:0 0 12px">' +
+          '<li>Installez <b>Google Authenticator</b> ou <b>Microsoft Authenticator</b> sur votre téléphone.</li>' +
+          '<li>Dans l\'application : <b>Ajouter un compte</b> → <b>Saisir une clé de configuration</b> (compte « GED notariale »).</li>' +
+          '<li>Saisissez cette clé : <code style="display:block;margin:6px 0;padding:8px;border-radius:8px;background:var(--cream);font-size:14px;letter-spacing:1px;word-break:break-all">' + escapeHtml(cle.secret) + '</code>' +
+          'Sur le téléphone lui-même : <a href="' + escapeHtml(cle.otpauthUri) + '">ouvrir directement dans l\'application</a>.</li>' +
+          '<li>Saisissez le code à 6 chiffres affiché par l\'application :</li></ol>' +
+          '<div class="field"><label>Code à 6 chiffres</label><input class="inp" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>',
+        onOk: function (donnees) {
+          return api("POST", "/auth/totp/confirm", { code: (donnees.code || "").replace(/\s/g, "") }).then(function (res) {
+            setTimeout(function () { etapeSecours(res.recoveryCodes || []); }, 0);
+          }).catch(function (err) { echec(err, "Code incorrect : vérifiez l'heure de votre téléphone."); });
+        }
+      });
+    }
+    function etapeSecours(codes) {
+      openModal({
+        title: "Vos codes de secours", ok: "J'ai conservé mes codes",
+        bodyHtml: '<p>Chaque code permet <b>une</b> connexion si vous perdez votre téléphone. Ils ne seront <b>plus jamais affichés</b> : ' +
+          'imprimez-les ou notez-les et rangez-les en lieu sûr (coffre de l\'étude).</p>' +
+          '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;font-family:monospace;font-size:14px;padding:10px;border-radius:10px;background:var(--cream)">' +
+          codes.map(function (c) { return "<span>" + escapeHtml(c) + "</span>"; }).join("") + '</div>',
+        onOk: function () { toast("Application d'authentification activée.", "ok"); return charger(); }
+      });
+    }
+    function desactiver() {
+      openModal({
+        title: "Désactiver l'application d'authentification", ok: "Désactiver",
+        bodyHtml: '<p>Votre connexion reposera de nouveau sur un code envoyé par e-mail. Les autres notaires seront prévenus.</p>' +
+          '<div class="field"><label>Mot de passe</label><input class="inp" type="password" name="password" autocomplete="current-password"></div>' +
+          '<div class="field"><label>Code de l\'application</label><input class="inp" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>',
+        onOk: function (donnees) {
+          return api("POST", "/auth/totp/disable", { password: donnees.password || "", code: (donnees.code || "").replace(/\s/g, "") })
+            .then(function () { toast("Application d'authentification désactivée.", "ok"); return charger(); })
+            .catch(function (err) { echec(err, "Mot de passe ou code incorrect."); });
+        }
+      });
+    }
+    var boutonMdp = document.getElementById("changerMotDePasse");
+    if (boutonMdp) boutonMdp.addEventListener("click", function () {
+      openModal({
+        title: "Changer le mot de passe", ok: "Enregistrer",
+        bodyHtml: '<div class="field"><label>Mot de passe actuel</label><input class="inp" type="password" name="currentPassword" autocomplete="current-password"></div>' +
+          '<div class="field"><label>Nouveau mot de passe</label><input class="inp" type="password" name="newPassword" autocomplete="new-password">' +
+          '<div class="muted" style="font-size:12px;margin-top:4px">12 caractères minimum, avec majuscule, minuscule et chiffre ; pas de mot de passe courant.</div></div>' +
+          '<div class="field"><label>Confirmer le nouveau mot de passe</label><input class="inp" type="password" name="confirmation" autocomplete="new-password"></div>',
+        onOk: function (d) {
+          if ((d.newPassword || "") !== (d.confirmation || "")) { toast("Les deux saisies du nouveau mot de passe diffèrent.", "err"); return Promise.reject(); }
+          return api("POST", "/me/password", { currentPassword: d.currentPassword || "", newPassword: d.newPassword || "" }).then(function (res) {
+            // Les autres sessions sont fermées ; celle-ci reçoit un jeton neuf.
+            try {
+              var session = JSON.parse(localStorage.getItem(SESSION_KEY) || "{}");
+              session.token = res.token;
+              localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            } catch (e) {}
+            cfg.token = res.token;
+            toast("Mot de passe modifié. Vos autres sessions ont été fermées.", "ok");
+          }).catch(function (err) { toast((err && err.message) || "Modification impossible.", "err"); throw err; });
+        }
+      });
+    });
+    charger();
+  }
+
   function setupProfil() {
     if (page.indexOf("profil") !== 0) return;
     function setProfile(profile) {
@@ -530,9 +728,11 @@
     });
   }
 
-  var QUEUE_STATUS_LABEL = { "brouillon": "Brouillon", "en_attente_validation": "À valider" };
+  /* Le libellé lisible vient désormais du serveur (statutLabel) : la table de
+     correspondance locale mappait « en_attente_validation », valeur que le
+     backend n'a jamais produite, et laissait donc passer le slug brut. */
   function queueRow(doc) {
-    var label = QUEUE_STATUS_LABEL[doc.statut] || doc.statut || "À indexer";
+    var label = doc.statutLabel || doc.statut || "À indexer";
     return '<tr data-ref="' + escapeHtml(doc.reference) + '"><td class="tname"><span class="fic" style="background:var(--warn-soft);color:#A9740A"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg></span>' + escapeHtml(doc.nom) + '</td><td>Import</td><td>' + escapeHtml(doc.uploadedByName || "—") + '</td><td><span class="b warn">' + escapeHtml(label) + '</span></td><td><a class="iconbtn" style="width:34px;height:34px" href="document-detail.html?ref=' + encodeURIComponent(doc.reference) + '" aria-label="Ouvrir le document"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/></svg></a></td></tr>';
   }
   function renderQueue(items) {
@@ -565,11 +765,84 @@
       }
     });
   }
+  function initDossierCombo() {
+    var wrap = document.getElementById("scanDossierCombo");
+    if (!wrap) return;
+    var input = document.getElementById("scanDossierInput");
+    var hidden = document.getElementById("scanDossierValue");
+    var panel = document.getElementById("scanDossierPanel");
+    var items = [];
+    var activeIndex = -1;
+    function label(item) { return item.reference + (item.client ? " — " + item.client : ""); }
+    function statusClass(item) {
+      return item.statut === "cloture" || item.statut === "clôturé" ? "grey" : (item.statut === "en_attente" ? "warn" : "green");
+    }
+    function openPanel() { panel.hidden = false; wrap.setAttribute("data-open", "true"); input.setAttribute("aria-expanded", "true"); }
+    function closePanel() { panel.hidden = true; wrap.removeAttribute("data-open"); input.setAttribute("aria-expanded", "false"); activeIndex = -1; }
+    function renderPanel(list) {
+      if (!items.length) { panel.innerHTML = '<div class="combo-empty">Chargement des dossiers…</div>'; return; }
+      if (!list.length) { panel.innerHTML = '<div class="combo-empty">Aucun dossier ne correspond à cette recherche.</div>'; return; }
+      panel.innerHTML = list.map(function (item, i) {
+        return '<div class="combo-opt" role="option" id="scanDossierOpt' + i + '" data-ref="' + escapeHtml(item.reference) + '" aria-selected="' + (hidden.value === item.reference ? "true" : "false") + '">' +
+          '<div class="combo-opt-main"><span class="combo-opt-ref">' + escapeHtml(item.reference) + '</span><span class="combo-opt-client">' + escapeHtml(item.client || "Sans client") + '</span></div>' +
+          '<div class="combo-opt-meta"><span>' + escapeHtml(item.objet || "—") + '</span><span class="b ' + statusClass(item) + '">' + escapeHtml(item.statutLabel || item.statut || "—") + '</span></div>' +
+          '</div>';
+      }).join("");
+    }
+    function filterItems(q) {
+      q = (q || "").trim().toLowerCase();
+      if (!q) return items;
+      return items.filter(function (item) {
+        return (item.reference || "").toLowerCase().indexOf(q) !== -1 ||
+          (item.client || "").toLowerCase().indexOf(q) !== -1 ||
+          (item.objet || "").toLowerCase().indexOf(q) !== -1;
+      });
+    }
+    function updateList() { renderPanel(filterItems(input.value)); activeIndex = -1; }
+    function selectItem(ref) {
+      var found = items.find(function (item) { return item.reference === ref; });
+      hidden.value = ref;
+      input.value = found ? label(found) : ref;
+      closePanel();
+    }
+    function highlight(opts) {
+      opts.forEach(function (o, i) { o.classList.toggle("active", i === activeIndex); });
+      if (opts[activeIndex]) opts[activeIndex].scrollIntoView({ block: "nearest" });
+    }
+    panel.innerHTML = '<div class="combo-empty">Chargement des dossiers…</div>';
+    api("GET", "/dossiers").then(function (list) { items = Array.isArray(list) ? list : []; }).catch(function () { items = []; });
+    input.addEventListener("focus", function () { updateList(); openPanel(); });
+    input.addEventListener("click", function () { updateList(); openPanel(); });
+    input.addEventListener("input", function () { hidden.value = ""; updateList(); openPanel(); });
+    input.addEventListener("keydown", function (e) {
+      var opts = panel.querySelectorAll(".combo-opt");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (panel.hidden) { updateList(); openPanel(); opts = panel.querySelectorAll(".combo-opt"); }
+        activeIndex = Math.min(activeIndex + 1, opts.length - 1);
+        highlight(opts);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        activeIndex = Math.max(activeIndex - 1, 0);
+        highlight(opts);
+      } else if (e.key === "Enter") {
+        if (!panel.hidden && activeIndex >= 0 && opts[activeIndex]) { e.preventDefault(); selectItem(opts[activeIndex].getAttribute("data-ref")); }
+      } else if (e.key === "Escape") {
+        closePanel();
+      }
+    });
+    panel.addEventListener("click", function (e) {
+      var opt = e.target.closest(".combo-opt");
+      if (opt) selectItem(opt.getAttribute("data-ref"));
+    });
+    document.addEventListener("click", function (e) { if (!wrap.contains(e.target)) closePanel(); });
+  }
   function setupScan() {
     if (page.indexOf("scan") !== 0) return;
     if (!can("scan")) return deny("La numérisation n'est pas dans votre socle d'accès.");
     loadQueue();
     populateReferentielSelects();
+    initDossierCombo();
     var btn = Array.from(document.querySelectorAll("button.btn.pri")).find(function (b) { return /contrôle/i.test(b.textContent); });
     if (btn) {
       btn.addEventListener("click", function (e) {
@@ -588,10 +861,19 @@
         form.append("type_code", data.type_code);
         form.append("niveau", data.niveau_de_confidentialite || "Standard");
         if (data.dossier) form.append("dossier", data.dossier);
+        // Une date de validité permet à la GED d'alerter avant expiration.
+        if (data.valid_until) form.append("valid_until", data.valid_until);
         btn.disabled = true;
         apiMultipart("/documents/upload", form).then(function (doc) {
           toast("Document envoyé au contrôle : " + doc.reference, "ok");
+          (doc.warnings || []).forEach(function (w, i) { setTimeout(function () { toast(w, "ok"); }, 900 * (i + 1)); });
+          var validite = document.getElementById("scanValidUntil");
+          if (validite) validite.value = "";
           if (input) input.value = "";
+          var dossierInput = document.getElementById("scanDossierInput");
+          var dossierValue = document.getElementById("scanDossierValue");
+          if (dossierInput) dossierInput.value = "";
+          if (dossierValue) dossierValue.value = "";
           loadQueue();
         }).finally(function () {
           btn.disabled = false;
@@ -640,6 +922,96 @@
             return api("POST", "/dossiers", payload).then(function () { toast("Dossier créé.", "ok"); loadDossiers(); });
           }
         });
+      });
+    }
+  }
+
+  function clientRow(item) {
+    var kindLabel = item.kind === "personne_morale" ? "Personne morale" : "Personne physique";
+    var meta = [kindLabel];
+    if (item.email) meta.push(item.email);
+    if (item.telephone) meta.push(item.telephone);
+    return '<div class="lrow" style="cursor:default"><span class="li" style="background:var(--primary-soft);color:var(--primary-600)">' + escapeHtml(initials(item.nom)) + '</span>' +
+      '<div><div class="lt">' + escapeHtml(item.nom) + '</div><div class="ls">' + escapeHtml(meta.join(" \u00b7 ")) + '</div></div>' +
+      '<div class="lx"><span class="b grey">' + (item.dossiersCount || 0) + (item.dossiersCount === 1 ? " dossier" : " dossiers") + '</span></div></div>';
+  }
+  function renderClients(items) {
+    var host = document.getElementById("clientsList");
+    if (!host) return;
+    if (!Array.isArray(items) || !items.length) {
+      host.innerHTML = '<div class="empty-mini">Aucun client pour le moment.</div>';
+      return;
+    }
+    host.innerHTML = items.map(clientRow).join("");
+  }
+  var __clients = [];
+  function loadClients() {
+    var host = document.getElementById("clientsList");
+    return api("GET", "/clients").then(function (items) {
+      __clients = Array.isArray(items) ? items : [];
+      renderClients(__clients);
+      return items;
+    }).catch(function () {
+      if (host) host.innerHTML = '<div class="empty-mini">Impossible de charger les clients.</div>';
+    });
+  }
+  function setupClients() {
+    if (page.indexOf("clients") !== 0) return;
+    loadClients();
+    var search = document.getElementById("clientSearch");
+    if (search) {
+      search.addEventListener("input", function () {
+        var q = search.value.trim().toLowerCase();
+        if (!q) return renderClients(__clients);
+        renderClients(__clients.filter(function (c) {
+          return [c.nom, c.reference, c.email, c.telephone].some(function (v) { return v && String(v).toLowerCase().indexOf(q) >= 0; });
+        }));
+      });
+    }
+  }
+
+  var TASK_STATUS_LABEL = { "ouverte": "Ouverte", "en_cours": "En cours", "termin\u00e9e": "Termin\u00e9e", "annul\u00e9e": "Annul\u00e9e" };
+  function taskRow(item) {
+    var badgeCls = item.status === "termin\u00e9e" ? "green" : (item.status === "annul\u00e9e" ? "grey" : ((item.priority === "urgente" || item.priority === "haute") ? "warn" : "grey"));
+    var meta = [];
+    if (item.dossier) meta.push(item.dossier);
+    if (item.assignedTo) meta.push(item.assignedTo);
+    if (item.dueAt) meta.push("\u00e9ch\u00e9ance " + docDate(item.dueAt));
+    return '<div class="lrow" style="cursor:default"><span class="li" style="background:var(--primary-soft);color:var(--primary-600)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="m8 12 2.5 2.5L16 9"/></svg></span>' +
+      '<div><div class="lt">' + escapeHtml(item.title) + '</div><div class="ls">' + escapeHtml(meta.join(" \u00b7 ")) + '</div></div>' +
+      '<div class="lx"><span class="b ' + badgeCls + '">' + escapeHtml(TASK_STATUS_LABEL[item.status] || item.status) + '</span></div></div>';
+  }
+  function renderTasks(items) {
+    var host = document.getElementById("tasksList");
+    if (!host) return;
+    if (!Array.isArray(items) || !items.length) {
+      host.innerHTML = '<div class="empty-mini">Aucune t\u00e2che pour le moment.</div>';
+      return;
+    }
+    host.innerHTML = items.map(taskRow).join("");
+  }
+  var __tasks = [];
+  function loadTaches() {
+    var host = document.getElementById("tasksList");
+    return api("GET", "/tasks").then(function (items) {
+      __tasks = Array.isArray(items) ? items : [];
+      renderTasks(__tasks);
+      return items;
+    }).catch(function () {
+      if (host) host.innerHTML = '<div class="empty-mini">Impossible de charger les t\u00e2ches.</div>';
+    });
+  }
+  function setupTaches() {
+    if (page.indexOf("taches") !== 0) return;
+    loadTaches();
+    var search = document.getElementById("taskSearch");
+    if (search) {
+      search.addEventListener("input", function () {
+        var q = search.value.trim().toLowerCase();
+        if (!q) return renderTasks(__tasks);
+        renderTasks(__tasks.filter(function (t) {
+          return [t.title, t.dossier, t.assignedTo, t.assignedBy].some(function (v) { return v && String(v).toLowerCase().indexOf(q) >= 0; });
+        }));
       });
     }
   }
@@ -790,12 +1162,45 @@
   function setupAudit() {
     if (page.indexOf("journal") !== 0) return;
     if (!can("audit")) return;
-    if (!cfg.useMock) api("GET", "/audit?scope=" + (cfg.role === "admin" ? "cabinet" : "me")).then(function (logs) {
+    // Le cahier des charges exige l'ancienne ET la nouvelle valeur pour les
+    // événements qui modifient un droit ou une classification. Elles étaient
+    // écrites en base et ne sortaient d'aucune API : le journal était
+    // consultable sans être exploitable. On les rend ici lisibles.
+    function auditDetails(details) {
+      if (!details || typeof details !== "object") return "";
+      var bouts = [];
+      if (details.previous !== undefined || details.next !== undefined) {
+        bouts.push("\u00ab\u00a0" + escapeHtml(String(details.previous == null ? "\u2014" : details.previous)) + "\u00a0\u00bb \u2192 \u00ab\u00a0" + escapeHtml(String(details.next == null ? "\u2014" : details.next)) + "\u00a0\u00bb");
+      }
+      if (details.motif) bouts.push("Motif\u00a0: " + escapeHtml(String(details.motif)));
+      if (details.propagation) {
+        var p = details.propagation;
+        bouts.push("\u00ab\u00a0" + escapeHtml(String(p.niveau_precedent)) + "\u00a0\u00bb \u2192 \u00ab\u00a0" + escapeHtml(String(p.niveau_suivant)) + "\u00a0\u00bb (" + p.pieces_relevees + " pi\u00e8ce(s) relev\u00e9e(s), " + p.pieces_abaissees + " abaiss\u00e9e(s))");
+      }
+      if (details.nombre !== undefined) bouts.push(details.nombre + " habilitation(s)");
+      if (details.pieces_omises) bouts.push(details.pieces_exportees + " pi\u00e8ce(s) export\u00e9e(s), " + details.pieces_omises + " omise(s) faute d'habilitation");
+      if (details.sessions_revoquees) bouts.push("sessions r\u00e9voqu\u00e9es");
+      if (!bouts.length) return "";
+      return '<div class="ls" style="margin-top:3px;opacity:.85">' + bouts.join(" \u00b7 ") + "</div>";
+    }
+    if (!cfg.useMock) api("GET", "/audit?scope=" + (cfg.role === "admin" ? "cabinet" : "me")).then(function (data) {
+      // Le journal renvoie { total, returned, entries } ; on accepte aussi un
+      // tableau nu pour ne dépendre d'aucun ordre de déploiement.
+      var logs = Array.isArray(data) ? data : ((data && data.entries) || []);
+      var total = Array.isArray(data) ? logs.length : ((data && data.total) || logs.length);
       var card = document.querySelector(".wrap .card");
-      if (!card || !Array.isArray(logs)) return;
-      card.innerHTML = logs.length ? logs.map(function (log) {
-        return '<div class="lrow"><span class="li" style="background:var(--primary-soft);color:var(--primary)">◷</span><div><div class="lt">' + escapeHtml(log.user) + '</div><div class="ls">' + escapeHtml(log.action.replace(/_/g, " ")) + (log.targetId ? " — " + escapeHtml(log.targetId) : "") + '</div></div><div class="lx"><span class="ls">' + docDate(log.timestamp) + '</span></div></div>';
-      }).join("") : '<div class="lrow"><div><div class="lt">Aucune activité</div><div class="ls">Les actions réalisées apparaîtront ici.</div></div></div>';
+      if (!card) return;
+      if (!logs.length) {
+        card.innerHTML = '<div class="lrow"><div><div class="lt">Aucune activit\u00e9</div><div class="ls">Les actions r\u00e9alis\u00e9es appara\u00eetront ici.</div></div></div>';
+        return;
+      }
+      var reste = total > logs.length
+        ? '<div class="lrow"><div><div class="ls">' + logs.length + " entr\u00e9e(s) affich\u00e9e(s) sur " + total + ". L'export CSV contient le journal complet et le d\u00e9tail de chaque \u00e9v\u00e9nement.</div></div></div>"
+        : "";
+      card.innerHTML = logs.map(function (log) {
+        var echec = log.result && log.result !== "success";
+        return '<div class="lrow"><span class="li" style="background:var(--' + (echec ? "danger-soft);color:var(--danger" : "primary-soft);color:var(--primary") + ')">' + (echec ? "\u2717" : "\u25f7") + '</span><div><div class="lt">' + escapeHtml(log.user) + '</div><div class="ls">' + escapeHtml(log.action.replace(/_/g, " ")) + (log.targetId ? " \u2014 " + escapeHtml(log.targetId) : "") + "</div>" + auditDetails(log.details) + '</div><div class="lx"><span class="ls">' + docDate(log.timestamp) + "</span></div></div>";
+      }).join("") + reste;
     });
     var exportBtn = Array.from(document.querySelectorAll("a.btn,.btn")).find(function (b) { return /export csv/i.test(b.textContent); });
     if (exportBtn) {
@@ -931,7 +1336,21 @@
     });
   }
 
+  // Lien de la notification vers ce qu'elle concerne (pièce, dossier, tâche,
+  // supervision) : l'utilisateur agit sans devoir rechercher.
+  function notificationHref(item) {
+    var id = encodeURIComponent(item.targetId || "");
+    switch (item.targetType) {
+      case "document": return id ? "document-detail.html?ref=" + id : "";
+      case "dossier": return id ? "dossier-detail.html?ref=" + id : "";
+      case "task": return "taches.html";
+      case "job": case "backup": case "security_alert": return "";
+      default: return "";
+    }
+  }
   var NOTIF_ICONS = {
+    alerte: { bg: "var(--danger-soft)", fg: "var(--danger)", path: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0"/><path d="M12 9v4"/><path d="M12 17h.01"/>' },
+    attention: { bg: "var(--warn-soft)", fg: "#A9740A", path: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
     backup: { bg: "var(--green-soft)", fg: "#1E9C72", path: '<path d="m5 12 4 4 10-10"/>' },
     permission_granted: { bg: "var(--warn-soft)", fg: "#A9740A", path: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/>' },
     document: { bg: "var(--blue-soft)", fg: "#2E6FD6", path: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/>' }
@@ -952,8 +1371,9 @@
     return docDate(iso);
   }
   function notificationRow(item) {
-    var icon = NOTIF_ICONS[item.type] || NOTIF_ICONS.document;
-    return '<div class="lrow" data-id="' + item.id + '" style="cursor:pointer' + (item.read ? ";opacity:.6" : "") + '"><span class="li" style="background:' + icon.bg + ';color:' + icon.fg + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon.path + '</svg></span>' +
+    var grave = item.severity === "haute" || item.severity === "critique";
+    var icon = grave ? NOTIF_ICONS.alerte : (item.severity === "attention" ? NOTIF_ICONS.attention : (NOTIF_ICONS[item.type] || NOTIF_ICONS.document));
+    return '<div class="lrow" data-id="' + item.id + '" data-href="' + escapeHtml(notificationHref(item)) + '" style="cursor:pointer' + (item.read ? ";opacity:.6" : "") + '"><span class="li" style="background:' + icon.bg + ';color:' + icon.fg + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon.path + '</svg></span>' +
       '<div><div class="lt">' + escapeHtml(item.title || "Notification") + '</div><div class="ls">' + escapeHtml(item.message || "") + '</div></div>' +
       '<div class="lx"><span class="ls">' + timeAgo(item.createdAt) + '</span></div></div>';
   }
@@ -981,6 +1401,11 @@
   }
   function setupNotifications() {
     refreshNotifDot();
+    // Les rappels et alertes naissent côté serveur, sans action de
+    // l'utilisateur : la cloche se rafraîchit seule (onglet visible
+    // uniquement, pour ne pas solliciter le serveur inutilement).
+    setInterval(function () { if (!document.hidden) refreshNotifDot(); }, 60000);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshNotifDot(); });
     if (page.indexOf("notifications") !== 0) return;
     loadNotifications();
     var host = document.getElementById("notificationsList");
@@ -989,9 +1414,11 @@
         var row = e.target.closest(".lrow");
         if (!row) return;
         var id = row.getAttribute("data-id");
+        var href = row.getAttribute("data-href");
         api("PATCH", "/notifications/read", { id: id }).then(function () {
           row.style.opacity = ".6";
           refreshNotifDot();
+          if (href) window.location.href = href;
         });
       });
     }
@@ -1046,6 +1473,7 @@
     if (!guardPage()) return;
     applySessionIdentity(__session);
     wireLogout();
+  surveillerInactivite();
     setupNav();
     setupNavTooltips();
   setupBackButtons();
@@ -1056,8 +1484,11 @@
     setupTables();
     setupRecherche();
     setupProfil();
+    if (page.indexOf("profil") === 0) setupSecuriteConnexion();
     setupScan();
     setupDossiers();
+    setupClients();
+    setupTaches();
     setupUsers();
     setupPermissions();
     setupConfig();
@@ -1069,6 +1500,43 @@
     setupFilterBtn();
     setupChips();
     setupDashboard();
+  }
+
+  /* Carte « Alertes » de l'accueil : état RÉEL de l'étude. Elle affichait
+     jusqu'ici en dur « Sauvegarde OK · Réplication terminée » et « 5 documents
+     à indexer », quelle que soit la réalité. */
+  function renderAlertesReelles(data) {
+    var hote = document.getElementById("alertesReelles");
+    if (!hote) return;
+    var ICONES = {
+      ok: { bg: "var(--green-soft)", fg: "#1E9C72", path: '<path d="m5 12 4 4 10-10"/>' },
+      info: { bg: "var(--blue-soft)", fg: "#2E6FD6", path: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01"/><path d="M11 12h1v4h1"/>' },
+      attention: { bg: "var(--warn-soft)", fg: "#A9740A", path: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
+      danger: { bg: "var(--danger-soft)", fg: "var(--danger)", path: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0"/><path d="M12 9v4"/><path d="M12 17h.01"/>' }
+    };
+    function ligne(icone, titre, texte, lien) {
+      var i = ICONES[icone];
+      var contenu = '<span class="li" style="background:' + i.bg + ';color:' + i.fg + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + i.path + '</svg></span>' +
+        '<div><div class="lt">' + escapeHtml(titre) + '</div><div class="ls">' + escapeHtml(texte) + '</div></div>';
+      return lien ? '<a class="lrow" href="' + lien + '" style="padding:13px 4px;text-decoration:none;color:inherit">' + contenu + '</a>'
+        : '<div class="lrow" style="padding:13px 4px">' + contenu + '</div>';
+    }
+    var lignes = [];
+    var auto = data.automatisations;
+    if (auto) {
+      var travailleurs = auto.travailleurs || [];
+      var actifs = travailleurs.filter(function (w) { return w.alive; }).length;
+      if (!travailleurs.length || actifs < travailleurs.length) lignes.push(ligne("danger", "Automatisations arrêtées", "Rappels, OCR et sauvegardes ne tournent plus : vérifiez les exécutants.", "sauvegarde.html#supervision"));
+      if ((auto.travauxEnEchec || []).length) lignes.push(ligne("danger", "Travaux en échec", auto.travauxEnEchec.join(", "), "sauvegarde.html#supervision"));
+      lignes.push(auto.sauvegardeAJour ? ligne("ok", "Sauvegarde à jour", "Dernière sauvegarde réussie dans le délai prévu.", "sauvegarde.html")
+        : ligne("danger", "Sauvegarde en retard", "Aucune sauvegarde réussie récente : intervention requise.", "sauvegarde.html"));
+    }
+    if (data.alertesOuvertesCount) lignes.push(ligne("danger", data.alertesOuvertesCount + " alerte(s) de sécurité", "À examiner et marquer traitées.", "sauvegarde.html#supervision"));
+    if (data.ocr && data.ocr.echecs) lignes.push(ligne("attention", data.ocr.echecs + " OCR en échec", "Texte non extrait : relancez l'OCR depuis la fiche.", "documents.html"));
+    if (data.pendingIndexationCount) lignes.push(ligne("info", data.pendingIndexationCount + " document(s) à indexer", "File de numérisation.", "scan.html"));
+    if (data.dossiersIncompletsCount) lignes.push(ligne("attention", data.dossiersIncompletsCount + " dossier(s) incomplet(s)", (data.piecesManquantesCount || 0) + " pièce(s) obligatoire(s) manquante(s).", "dossiers.html"));
+    if ((data.echeances || []).length) lignes.push(ligne("info", data.echeances.length + " échéance(s) à venir", "Vos tâches ouvertes datées.", "taches.html"));
+    hote.innerHTML = lignes.length ? lignes.join("") : ligne("ok", "Rien à signaler", "Aucune alerte en cours.", null);
   }
 
   function setupDashboard() {
@@ -1086,6 +1554,7 @@
       var alert = document.getElementById("dashboardAlerts");
       if (alert) alert.innerHTML = '<span class="li" style="background:var(--green-soft);color:#1E9C72">✓</span><div><div class="lt">Données actualisées</div><div class="ls">' + data.documentsAccessibleCount + " document" + (data.documentsAccessibleCount > 1 ? "s" : "") + " visible" + (data.documentsAccessibleCount > 1 ? "s" : "") + "</div></div>";
       renderDocuments(data.recentDocuments);
+      renderAlertesReelles(data);
     });
   }
 

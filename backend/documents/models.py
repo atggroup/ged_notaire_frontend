@@ -3,14 +3,19 @@ import os
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
-from ged_backend.referentiels import NATURES, ORIGINES, QUALITES_PARTIES, STATUT_LABELS, SUPPORTS, TYPES_DOCUMENTS
+from ged_backend.referentiels import NATURES, ORIGINES, QUALITES_PARTIES, SUPPORTS, TYPES_DOCUMENTS
 from .crypto import decrypt
 
 
 def document_upload_path(instance, filename: str) -> str:
+    # Le nom d'origine (« Testament_Kouassi.pdf ») n'entre plus dans le chemin
+    # de stockage : il se lisait en clair sur le disque et dans chaque copie de
+    # sauvegarde, alors que le contenu, lui, est chiffré. Il reste conservé en
+    # base (`original_filename`). Les fichiers déjà déposés gardent leur chemin.
     year = timezone.now().strftime("%Y")
     folder = instance.dossier.reference if instance.dossier else "sans-dossier"
-    return f"documents/{folder}/{year}/{instance.reference}-{os.path.basename(filename)}.enc"
+    extension = os.path.splitext(os.path.basename(filename))[1].lower()[:8]
+    return f"documents/{folder}/{year}/{instance.reference}{extension}.enc"
 
 
 class Document(models.Model):
@@ -19,6 +24,11 @@ class Document(models.Model):
         RESTRICTED = "Restreint", "Restreint"
         CONFIDENTIAL = "Confidentiel", "Confidentiel"
         VERY_CONFIDENTIAL = "Très confidentiel", "Très confidentiel"
+    # Attention : ce workflow est distinct du référentiel documentaire
+    # `ged_backend.referentiels.STATUTS` (18 codes du cadrage, exposés tels
+    # quels par /api/referentiels à titre de nomenclature). C'est CETTE
+    # énumération qui pilote le cycle de vie applicatif ; les deux
+    # vocabulaires ne doivent pas être confondus.
     class Status(models.TextChoices):
         TO_INDEX = "à_indexer", "À indexer"
         DRAFT = "brouillon", "Brouillon"
@@ -67,6 +77,7 @@ class Document(models.Model):
     quality_notes = models.TextField(blank=True)
     class OCRStatus(models.TextChoices):
         PENDING = "en_attente", "En attente"
+        PROCESSING = "en_cours", "En cours"
         EXTRACTED = "extrait", "Extrait"
         UNAVAILABLE = "indisponible", "Indisponible"
         FAILED = "échec", "Échec"
@@ -74,11 +85,24 @@ class Document(models.Model):
     ocr_status = models.CharField(max_length=16, choices=OCRStatus.choices, default=OCRStatus.PENDING)
     ocr_processed_at = models.DateTimeField(null=True, blank=True)
     ocr_error = models.TextField(blank=True)
+    # File OCR : tentatives, prise en charge (détection d'un traitement
+    # bloqué) et prochaine tentative après un échec transitoire.
+    ocr_attempts = models.PositiveSmallIntegerField(default=0)
+    ocr_started_at = models.DateTimeField(null=True, blank=True)
+    ocr_next_retry_at = models.DateTimeField(null=True, blank=True)
+    # Date de fin de validité d'une pièce datée (pièce d'identité, certificat
+    # d'urbanisme, état hypothécaire…) : l'expiration est signalée à l'avance.
+    valid_until = models.DateField(null=True, blank=True)
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="uploaded_documents")
     validated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="validated_documents")
     validated_at = models.DateTimeField(null=True, blank=True)
     is_archived = models.BooleanField(default=False)
     trashed_at = models.DateTimeField(null=True, blank=True)
+    # Mémorise le statut qui précède la mise à la corbeille : sans lui, une
+    # restauration ne peut pas tenir la promesse faite à l'écran (« le document
+    # retrouve son statut précédent ») et un acte validé revenait « à_indexer »
+    # tout en conservant sa signature notariale.
+    statut_avant_corbeille = models.CharField(max_length=32, blank=True)
     trashed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="trashed_documents")
     destruction_requested_at = models.DateTimeField(null=True, blank=True)
     destruction_requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="destruction_requests")
@@ -91,7 +115,20 @@ class Document(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["type", "niveau_de_confidentialite"]), models.Index(fields=["reference"])]
+        indexes = [
+            models.Index(fields=["type", "niveau_de_confidentialite"]),
+            models.Index(fields=["reference"]),
+            # L'ordre par défaut n'était couvert par aucun index : tout
+            # affichage de liste passait par un tri complet de la table.
+            models.Index(fields=["-created_at"]),
+            # File de numérisation et compteurs du tableau de bord.
+            models.Index(fields=["statut"]),
+            # Liste des documents : is_archived + trashed_at + is_current.
+            models.Index(fields=["is_archived", "is_current", "trashed_at"], name="doc_liste_courante_idx"),
+            # Onglet « Documents » d'un dossier.
+            models.Index(fields=["dossier", "is_current"], name="doc_par_dossier_idx"),
+            models.Index(fields=["ocr_status", "ocr_next_retry_at"], name="doc_file_ocr_idx"),
+        ]
 
     def decrypted_bytes(self) -> bytes:
         with self.fichier.open("rb") as source:

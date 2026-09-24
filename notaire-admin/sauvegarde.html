@@ -2,12 +2,14 @@
 <html lang="fr" data-theme="notaire">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
 <title>GED Notaire — Sauvegarde</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<meta name="theme-color" content="#FFFDFA">
+<link rel="stylesheet" href="../assets/responsive.css">
 </head>
 <body data-theme="notaire" data-role="notaire">
   <div class="app">
@@ -49,6 +51,9 @@
         <div class="card">
           <div class="sec-h"><h2>Restauration</h2></div>
           <div class="kv"><span>Dernier test de restauration</span><b id="backupRestoreLast">Aucun test exécuté</b></div>
+          <div class="kv"><span>Dernier exercice PRA automatique</span><b id="backupDrillLast">—</b></div>
+          <div class="kv"><span>Fraîcheur de la sauvegarde</span><b id="backupFreshness">—</b></div>
+          <div class="kv"><span>Clés sauvegardées hors du serveur</span><b id="backupEscrow">—</b></div>
           <div class="kv"><span>Chiffrement au repos</span><b>AES-256</b></div>
           <div class="kv"><span>Chiffrement en transit</span><b>TLS 1.3</b></div>
           <button class="btn block" style="margin-top:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 4v5h7"/><path d="M8 14h8"/></svg> Lancer une restauration test</button>
@@ -65,11 +70,27 @@
         <tr><td colspan="4" class="muted" style="text-align:center;padding:24px">Chargement de l'historique…</td></tr>
         </tbody></table>
       </div>
+      <div class="sec-h" id="supervision" style="margin-top:8px"><h2>Supervision des automatisations</h2><span class="b grey" id="workerState">Lecture…</span></div>
+      <div class="card" style="padding:8px 4px">
+        <p class="muted" style="font-size:12.5px;margin:6px 12px 10px">Rappels d'échéances, OCR, pièces manquantes, sauvegardes, contrôles de sécurité : chaque travail automatique est tracé ici. Un échec vous est notifié immédiatement.</p>
+        <div class="table-wrap"><table><thead><tr><th>Travail</th><th>Fréquence</th><th>Dernière exécution</th><th>Résultat</th><th></th></tr></thead>
+        <tbody id="jobsBody">
+        <tr><td colspan="5" class="muted" style="text-align:center;padding:24px">Chargement des automatisations…</td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="sec-h" style="margin-top:8px"><h2>Alertes de sécurité</h2><span class="b grey" id="alertsCount">—</span></div>
+      <div class="card" style="padding:8px 4px">
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Gravité</th><th>Alerte</th><th>Statut</th><th></th></tr></thead>
+        <tbody id="alertsBody">
+        <tr><td colspan="5" class="muted" style="text-align:center;padding:24px">Chargement des alertes…</td></tr>
+        </tbody></table></div>
+      </div>
     </div>
       </div>
     </div>
   </div>
   <script src="assets/config.js"></script>
   <script src="assets/app.js"></script>
+<script src="../assets/responsive.js"></script>
 </body>
 </html>

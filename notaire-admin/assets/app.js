@@ -6,6 +6,61 @@
   var page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   var params = new URLSearchParams(location.search);
 
+  /* ---------------- Skeleton de chargement ----------------
+     Avant même le premier appel API, on remplace tout contenu figé dans le
+     HTML (texte « Chargement… » ou fiches d'exemple) par un skeleton animé :
+     ainsi aucune donnée fictive ne s'affiche à l'écran, même un instant, en
+     attendant la réponse du serveur. Les fonctions renderXxx() déjà
+     existantes plus bas écrasent ce skeleton dès que les données réelles
+     arrivent (ou l'état vide / l'état d'erreur, selon le cas). En mode démo
+     (useMock:true) on ne touche à rien : le contenu d'exemple reste affiché
+     tel quel, comme avant. */
+  (function renderInitialSkeletons() {
+    if (cfg.useMock) return;
+    function bar(w, cls) {
+      return '<span class="skel-block skel-line' + (cls ? " " + cls : "") + '" style="width:' + (w || "70%") + '"></span>';
+    }
+    function docCard() {
+      return '<div class="doc skel-doc" aria-hidden="true">' +
+        '<div class="skel-block skel-thumb" style="height:118px"></div>' +
+        bar("78%", "lg") + bar("52%", "sm") +
+        '<div class="row" style="display:flex;align-items:center;margin-top:12px;gap:10px">' + bar("34%") +
+        '<span class="skel-block skel-avatar" style="width:32px;height:32px;margin-left:auto"></span></div></div>';
+    }
+    function row(cols) {
+      var tds = "";
+      for (var i = 0; i < cols; i++) tds += "<td>" + bar(i === cols - 1 ? "26px" : (i === 0 ? "78%" : "58%")) + "</td>";
+      return '<tr class="skel-row" aria-hidden="true">' + tds + "</tr>";
+    }
+    function mini() {
+      return '<div class="skel-mini" aria-hidden="true"><span class="skel-block skel-avatar" style="width:36px;height:36px"></span>' + bar("62%") + "</div>";
+    }
+    var docsHost = document.querySelector(".docs");
+    if (docsHost && (page.indexOf("index") === 0 || page.indexOf("documents") === 0 || page.indexOf("recherche") === 0)) {
+      docsHost.innerHTML = Array(6).fill(0).map(docCard).join("");
+    }
+    [["dossiersBody", 6], ["usersBody", 4], ["permissionsBody", 6], ["accessRequestsBody", 5], ["queueBody", 5], ["backupHistoryBody", 4]].forEach(function (pair) {
+      var body = document.getElementById(pair[0]);
+      if (body) body.innerHTML = Array(4).fill(0).map(function () { return row(pair[1]); }).join("");
+    });
+    ["notificationsList", "savedSearchesList", "importantAlertsList"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = Array(3).fill(0).map(mini).join("");
+    });
+    if (page.indexOf("journal-audit") === 0) {
+      var auditCard = document.querySelector(".wrap .card");
+      if (auditCard) auditCard.innerHTML = Array(5).fill(0).map(mini).join("");
+    }
+    if (page.indexOf("document-detail") === 0) {
+      var title = document.querySelector(".two h3");
+      if (title) title.innerHTML = bar("58%", "lg");
+    }
+    var access = document.getElementById("accessRequestList");
+    if (access) access.innerHTML = '<span class="skel-block skel-avatar" style="width:36px;height:36px"></span>' + bar("60%");
+    var alertsEl = document.getElementById("dashboardAlerts");
+    if (alertsEl) alertsEl.innerHTML = '<span class="skel-block skel-avatar" style="width:36px;height:36px"></span>' + bar("60%");
+  })();
+
   document.documentElement.setAttribute("data-theme", cfg.theme || cfg.role);
   document.body.setAttribute("data-theme", cfg.theme || cfg.role);
   document.body.setAttribute("data-role", cfg.role);
@@ -24,6 +79,31 @@
     var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
     if (!parts.length) return "GD";
     return (parts[0][0] + (parts[1] ? parts[1][0] : parts[0][1] || "")).toUpperCase();
+  }
+  /* Déconnexion après inactivité (30 min par défaut, cfg.inactivityMinutes).
+     Un poste resté ouvert à l'accueil de l'étude donnait accès aux actes
+     pendant toute la durée du jeton (8 h). L'activité est partagée entre les
+     onglets : travailler dans l'un garde les autres ouverts. */
+  function surveillerInactivite() {
+    var limite = (Number(cfg.inactivityMinutes) || 30) * 60000;
+    var CLE = "ged_derniere_activite";
+    function marquer() { try { localStorage.setItem(CLE, String(Date.now())); } catch (e) {} }
+    var dernier = 0;
+    ["click", "keydown", "mousemove", "touchstart", "scroll"].forEach(function (evt) {
+      document.addEventListener(evt, function () {
+        var maintenant = Date.now();
+        if (maintenant - dernier > 15000) { dernier = maintenant; marquer(); }
+      }, { passive: true, capture: true });
+    });
+    marquer();
+    setInterval(function () {
+      var derniere = 0;
+      try { derniere = Number(localStorage.getItem(CLE) || 0); } catch (e) {}
+      if (derniere && Date.now() - derniere > limite) {
+        clearSession();
+        location.href = "../login.html?expire=inactivite";
+      }
+    }, 20000);
   }
   function requireSession() {
     var s = getSession();
@@ -74,6 +154,13 @@
 
   var toastHost = document.createElement("div");
   toastHost.className = "toast-host";
+  // Les toasts portent l'essentiel du retour utilisateur (succès, refus,
+  // message d'erreur du serveur). Sans région « live », un lecteur d'écran
+  // ne les annonce jamais : l'utilisateur non-voyant agit sans savoir si
+  // l'action a abouti. `polite` n'interrompt pas la lecture en cours.
+  toastHost.setAttribute("role", "status");
+  toastHost.setAttribute("aria-live", "polite");
+  toastHost.setAttribute("aria-atomic", "false");
   document.body.appendChild(toastHost);
 
   function toast(message, kind) {
@@ -159,7 +246,19 @@
       if (res.status === 401) throw new Error("Session expirée.");
       if (res.status === 403) throw new Error("Droits insuffisants.");
       return res.json().catch(function () { return {}; }).then(function (data) {
-        if (!res.ok) throw new Error(data.detail || "Le document n'a pas pu être archivé.");
+        if (!res.ok) {
+          var message = "Le document n'a pas pu être archivé.";
+          if (data && typeof data === "object") {
+            if (typeof data.detail === "string") message = data.detail;
+            else if (Array.isArray(data.non_field_errors) && data.non_field_errors.length) message = data.non_field_errors[0];
+            else {
+              for (var key in data) {
+                if (Object.prototype.hasOwnProperty.call(data, key) && Array.isArray(data[key]) && data[key].length) { message = data[key][0]; break; }
+              }
+            }
+          }
+          throw new Error(message);
+        }
         return data;
       });
     }).catch(function (err) { toast(err.message || "Échec de l'envoi.", "err"); throw err; });
@@ -495,6 +594,105 @@
     loadSavedSearches();
   }
 
+  /* Second facteur par application d'authentification (TOTP).
+     Remplace l'interrupteur « Activée / Désactivée » qui ne commandait rien :
+     l'écran affiche l'état réel et guide l'activation pas à pas. */
+  function setupSecuriteConnexion() {
+    var zone = document.getElementById("totpZone");
+    if (!zone) return;
+    function afficher(etat) {
+      if (etat.enabled) {
+        zone.innerHTML = '<span class="b green">Activée</span> depuis le ' + escapeHtml(new Date(etat.enabledAt).toLocaleDateString("fr-FR")) +
+          ' · ' + etat.recoveryCodesRemaining + ' code(s) de secours restant(s).<br>' +
+          '<button type="button" class="btn" id="totpDesactiver" style="margin-top:10px">Désactiver</button>';
+        document.getElementById("totpDesactiver").addEventListener("click", desactiver);
+      } else {
+        zone.innerHTML = '<span class="b warn">Non activée</span> Votre second facteur repose sur l\'e-mail : si votre messagerie ' +
+          'était compromise, votre compte le serait aussi.<br>' +
+          '<button type="button" class="btn pri" id="totpActiver" style="margin-top:10px">Activer l\'application d\'authentification</button>';
+        document.getElementById("totpActiver").addEventListener("click", activer);
+      }
+    }
+    function charger() { return api("GET", "/auth/totp").then(afficher).catch(function () { zone.textContent = "État indisponible."; }); }
+    function echec(err, defaut) { toast((err && err.message) || defaut, "err"); throw err; }
+    function activer() {
+      openModal({
+        title: "Activer l'application d'authentification", ok: "Continuer",
+        bodyHtml: '<p>Par sécurité, confirmez d\'abord votre mot de passe.</p>' +
+          '<div class="field"><label>Mot de passe</label><input class="inp" type="password" name="password" autocomplete="current-password"></div>',
+        onOk: function (donnees) {
+          return api("POST", "/auth/totp/setup", { password: donnees.password || "" }).then(function (cle) {
+            setTimeout(function () { etapeCle(cle); }, 0);
+          }).catch(function (err) { echec(err, "Mot de passe incorrect."); });
+        }
+      });
+    }
+    function etapeCle(cle) {
+      openModal({
+        title: "Ajoutez la GED dans votre application", ok: "Vérifier le code",
+        bodyHtml: '<ol style="font-size:13px;line-height:1.6;padding-left:18px;margin:0 0 12px">' +
+          '<li>Installez <b>Google Authenticator</b> ou <b>Microsoft Authenticator</b> sur votre téléphone.</li>' +
+          '<li>Dans l\'application : <b>Ajouter un compte</b> → <b>Saisir une clé de configuration</b> (compte « GED notariale »).</li>' +
+          '<li>Saisissez cette clé : <code style="display:block;margin:6px 0;padding:8px;border-radius:8px;background:var(--cream);font-size:14px;letter-spacing:1px;word-break:break-all">' + escapeHtml(cle.secret) + '</code>' +
+          'Sur le téléphone lui-même : <a href="' + escapeHtml(cle.otpauthUri) + '">ouvrir directement dans l\'application</a>.</li>' +
+          '<li>Saisissez le code à 6 chiffres affiché par l\'application :</li></ol>' +
+          '<div class="field"><label>Code à 6 chiffres</label><input class="inp" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>',
+        onOk: function (donnees) {
+          return api("POST", "/auth/totp/confirm", { code: (donnees.code || "").replace(/\s/g, "") }).then(function (res) {
+            setTimeout(function () { etapeSecours(res.recoveryCodes || []); }, 0);
+          }).catch(function (err) { echec(err, "Code incorrect : vérifiez l'heure de votre téléphone."); });
+        }
+      });
+    }
+    function etapeSecours(codes) {
+      openModal({
+        title: "Vos codes de secours", ok: "J'ai conservé mes codes",
+        bodyHtml: '<p>Chaque code permet <b>une</b> connexion si vous perdez votre téléphone. Ils ne seront <b>plus jamais affichés</b> : ' +
+          'imprimez-les ou notez-les et rangez-les en lieu sûr (coffre de l\'étude).</p>' +
+          '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;font-family:monospace;font-size:14px;padding:10px;border-radius:10px;background:var(--cream)">' +
+          codes.map(function (c) { return "<span>" + escapeHtml(c) + "</span>"; }).join("") + '</div>',
+        onOk: function () { toast("Application d'authentification activée.", "ok"); return charger(); }
+      });
+    }
+    function desactiver() {
+      openModal({
+        title: "Désactiver l'application d'authentification", ok: "Désactiver",
+        bodyHtml: '<p>Votre connexion reposera de nouveau sur un code envoyé par e-mail. Les autres notaires seront prévenus.</p>' +
+          '<div class="field"><label>Mot de passe</label><input class="inp" type="password" name="password" autocomplete="current-password"></div>' +
+          '<div class="field"><label>Code de l\'application</label><input class="inp" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>',
+        onOk: function (donnees) {
+          return api("POST", "/auth/totp/disable", { password: donnees.password || "", code: (donnees.code || "").replace(/\s/g, "") })
+            .then(function () { toast("Application d'authentification désactivée.", "ok"); return charger(); })
+            .catch(function (err) { echec(err, "Mot de passe ou code incorrect."); });
+        }
+      });
+    }
+    var boutonMdp = document.getElementById("changerMotDePasse");
+    if (boutonMdp) boutonMdp.addEventListener("click", function () {
+      openModal({
+        title: "Changer le mot de passe", ok: "Enregistrer",
+        bodyHtml: '<div class="field"><label>Mot de passe actuel</label><input class="inp" type="password" name="currentPassword" autocomplete="current-password"></div>' +
+          '<div class="field"><label>Nouveau mot de passe</label><input class="inp" type="password" name="newPassword" autocomplete="new-password">' +
+          '<div class="muted" style="font-size:12px;margin-top:4px">12 caractères minimum, avec majuscule, minuscule et chiffre ; pas de mot de passe courant.</div></div>' +
+          '<div class="field"><label>Confirmer le nouveau mot de passe</label><input class="inp" type="password" name="confirmation" autocomplete="new-password"></div>',
+        onOk: function (d) {
+          if ((d.newPassword || "") !== (d.confirmation || "")) { toast("Les deux saisies du nouveau mot de passe diffèrent.", "err"); return Promise.reject(); }
+          return api("POST", "/me/password", { currentPassword: d.currentPassword || "", newPassword: d.newPassword || "" }).then(function (res) {
+            // Les autres sessions sont fermées ; celle-ci reçoit un jeton neuf.
+            try {
+              var session = JSON.parse(localStorage.getItem(SESSION_KEY) || "{}");
+              session.token = res.token;
+              localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            } catch (e) {}
+            cfg.token = res.token;
+            toast("Mot de passe modifié. Vos autres sessions ont été fermées.", "ok");
+          }).catch(function (err) { toast((err && err.message) || "Modification impossible.", "err"); throw err; });
+        }
+      });
+    });
+    charger();
+  }
+
   function setupProfil() {
     if (page.indexOf("profil") !== 0) return;
     var nameInput = document.querySelector('[name="name"]');
@@ -516,9 +714,11 @@
     });
   }
 
-  var QUEUE_STATUS_LABEL = { "brouillon": "Brouillon", "en_attente_validation": "À valider" };
+  /* Le libellé lisible vient désormais du serveur (statutLabel) : la table de
+     correspondance locale mappait « en_attente_validation », valeur que le
+     backend n'a jamais produite, et laissait donc passer le slug brut. */
   function queueRow(doc) {
-    var label = QUEUE_STATUS_LABEL[doc.statut] || doc.statut || "À indexer";
+    var label = doc.statutLabel || doc.statut || "À indexer";
     return '<tr data-ref="' + escapeHtml(doc.reference) + '"><td class="tname"><span class="fic" style="background:var(--warn-soft);color:#A9740A"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg></span>' + escapeHtml(doc.nom) + '</td><td>Import</td><td>' + escapeHtml(doc.uploadedByName || "—") + '</td><td><span class="b warn">' + escapeHtml(label) + '</span></td><td><a class="iconbtn" style="width:34px;height:34px" href="document-detail.html?ref=' + encodeURIComponent(doc.reference) + '" aria-label="Ouvrir le document"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/></svg></a></td></tr>';
   }
   function renderQueue(items) {
@@ -551,11 +751,84 @@
       }
     });
   }
+  function initDossierCombo() {
+    var wrap = document.getElementById("scanDossierCombo");
+    if (!wrap) return;
+    var input = document.getElementById("scanDossierInput");
+    var hidden = document.getElementById("scanDossierValue");
+    var panel = document.getElementById("scanDossierPanel");
+    var items = [];
+    var activeIndex = -1;
+    function label(item) { return item.reference + (item.client ? " — " + item.client : ""); }
+    function statusClass(item) {
+      return item.statut === "cloture" || item.statut === "clôturé" ? "grey" : (item.statut === "en_attente" ? "warn" : "green");
+    }
+    function openPanel() { panel.hidden = false; wrap.setAttribute("data-open", "true"); input.setAttribute("aria-expanded", "true"); }
+    function closePanel() { panel.hidden = true; wrap.removeAttribute("data-open"); input.setAttribute("aria-expanded", "false"); activeIndex = -1; }
+    function renderPanel(list) {
+      if (!items.length) { panel.innerHTML = '<div class="combo-empty">Chargement des dossiers…</div>'; return; }
+      if (!list.length) { panel.innerHTML = '<div class="combo-empty">Aucun dossier ne correspond à cette recherche.</div>'; return; }
+      panel.innerHTML = list.map(function (item, i) {
+        return '<div class="combo-opt" role="option" id="scanDossierOpt' + i + '" data-ref="' + escapeHtml(item.reference) + '" aria-selected="' + (hidden.value === item.reference ? "true" : "false") + '">' +
+          '<div class="combo-opt-main"><span class="combo-opt-ref">' + escapeHtml(item.reference) + '</span><span class="combo-opt-client">' + escapeHtml(item.client || "Sans client") + '</span></div>' +
+          '<div class="combo-opt-meta"><span>' + escapeHtml(item.objet || "—") + '</span><span class="b ' + statusClass(item) + '">' + escapeHtml(item.statutLabel || item.statut || "—") + '</span></div>' +
+          '</div>';
+      }).join("");
+    }
+    function filterItems(q) {
+      q = (q || "").trim().toLowerCase();
+      if (!q) return items;
+      return items.filter(function (item) {
+        return (item.reference || "").toLowerCase().indexOf(q) !== -1 ||
+          (item.client || "").toLowerCase().indexOf(q) !== -1 ||
+          (item.objet || "").toLowerCase().indexOf(q) !== -1;
+      });
+    }
+    function updateList() { renderPanel(filterItems(input.value)); activeIndex = -1; }
+    function selectItem(ref) {
+      var found = items.find(function (item) { return item.reference === ref; });
+      hidden.value = ref;
+      input.value = found ? label(found) : ref;
+      closePanel();
+    }
+    function highlight(opts) {
+      opts.forEach(function (o, i) { o.classList.toggle("active", i === activeIndex); });
+      if (opts[activeIndex]) opts[activeIndex].scrollIntoView({ block: "nearest" });
+    }
+    panel.innerHTML = '<div class="combo-empty">Chargement des dossiers…</div>';
+    api("GET", "/dossiers").then(function (list) { items = Array.isArray(list) ? list : []; }).catch(function () { items = []; });
+    input.addEventListener("focus", function () { updateList(); openPanel(); });
+    input.addEventListener("click", function () { updateList(); openPanel(); });
+    input.addEventListener("input", function () { hidden.value = ""; updateList(); openPanel(); });
+    input.addEventListener("keydown", function (e) {
+      var opts = panel.querySelectorAll(".combo-opt");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (panel.hidden) { updateList(); openPanel(); opts = panel.querySelectorAll(".combo-opt"); }
+        activeIndex = Math.min(activeIndex + 1, opts.length - 1);
+        highlight(opts);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        activeIndex = Math.max(activeIndex - 1, 0);
+        highlight(opts);
+      } else if (e.key === "Enter") {
+        if (!panel.hidden && activeIndex >= 0 && opts[activeIndex]) { e.preventDefault(); selectItem(opts[activeIndex].getAttribute("data-ref")); }
+      } else if (e.key === "Escape") {
+        closePanel();
+      }
+    });
+    panel.addEventListener("click", function (e) {
+      var opt = e.target.closest(".combo-opt");
+      if (opt) selectItem(opt.getAttribute("data-ref"));
+    });
+    document.addEventListener("click", function (e) { if (!wrap.contains(e.target)) closePanel(); });
+  }
   function setupScan() {
     if (page.indexOf("scan") !== 0) return;
     if (!can("scan")) return deny("La numérisation n'est pas dans votre socle d'accès.");
     loadQueue();
     populateReferentielSelects();
+    initDossierCombo();
     var btn = Array.from(document.querySelectorAll("button.btn.pri")).find(function (b) { return /contrôle/i.test(b.textContent); });
     if (btn) {
       btn.addEventListener("click", function (e) {
@@ -574,10 +847,19 @@
         form.append("type_code", data.type_code);
         form.append("niveau", data.niveau_de_confidentialite || "Standard");
         if (data.dossier) form.append("dossier", data.dossier);
+        // Une date de validité permet à la GED d'alerter avant expiration.
+        if (data.valid_until) form.append("valid_until", data.valid_until);
         btn.disabled = true;
         apiMultipart("/documents/upload", form).then(function (doc) {
           toast("Document envoyé au contrôle : " + doc.reference, "ok");
+          (doc.warnings || []).forEach(function (w, i) { setTimeout(function () { toast(w, "ok"); }, 900 * (i + 1)); });
+          var validite = document.getElementById("scanValidUntil");
+          if (validite) validite.value = "";
           if (input) input.value = "";
+          var dossierInput = document.getElementById("scanDossierInput");
+          var dossierValue = document.getElementById("scanDossierValue");
+          if (dossierInput) dossierInput.value = "";
+          if (dossierValue) dossierValue.value = "";
           loadQueue();
         }).finally(function () {
           btn.disabled = false;
@@ -635,6 +917,96 @@
     }
   }
 
+  function clientRow(item) {
+    var kindLabel = item.kind === "personne_morale" ? "Personne morale" : "Personne physique";
+    var meta = [kindLabel];
+    if (item.email) meta.push(item.email);
+    if (item.telephone) meta.push(item.telephone);
+    return '<div class="lrow" style="cursor:default"><span class="li" style="background:var(--primary-soft);color:var(--primary-600)">' + escapeHtml(initials(item.nom)) + '</span>' +
+      '<div><div class="lt">' + escapeHtml(item.nom) + '</div><div class="ls">' + escapeHtml(meta.join(" \u00b7 ")) + '</div></div>' +
+      '<div class="lx"><span class="b grey">' + (item.dossiersCount || 0) + (item.dossiersCount === 1 ? " dossier" : " dossiers") + '</span></div></div>';
+  }
+  function renderClients(items) {
+    var host = document.getElementById("clientsList");
+    if (!host) return;
+    if (!Array.isArray(items) || !items.length) {
+      host.innerHTML = '<div class="empty-mini">Aucun client pour le moment.</div>';
+      return;
+    }
+    host.innerHTML = items.map(clientRow).join("");
+  }
+  var __clients = [];
+  function loadClients() {
+    var host = document.getElementById("clientsList");
+    return api("GET", "/clients").then(function (items) {
+      __clients = Array.isArray(items) ? items : [];
+      renderClients(__clients);
+      return items;
+    }).catch(function () {
+      if (host) host.innerHTML = '<div class="empty-mini">Impossible de charger les clients.</div>';
+    });
+  }
+  function setupClients() {
+    if (page.indexOf("clients") !== 0) return;
+    loadClients();
+    var search = document.getElementById("clientSearch");
+    if (search) {
+      search.addEventListener("input", function () {
+        var q = search.value.trim().toLowerCase();
+        if (!q) return renderClients(__clients);
+        renderClients(__clients.filter(function (c) {
+          return [c.nom, c.reference, c.email, c.telephone].some(function (v) { return v && String(v).toLowerCase().indexOf(q) >= 0; });
+        }));
+      });
+    }
+  }
+
+  var TASK_STATUS_LABEL = { "ouverte": "Ouverte", "en_cours": "En cours", "termin\u00e9e": "Termin\u00e9e", "annul\u00e9e": "Annul\u00e9e" };
+  function taskRow(item) {
+    var badgeCls = item.status === "termin\u00e9e" ? "green" : (item.status === "annul\u00e9e" ? "grey" : ((item.priority === "urgente" || item.priority === "haute") ? "warn" : "grey"));
+    var meta = [];
+    if (item.dossier) meta.push(item.dossier);
+    if (item.assignedTo) meta.push(item.assignedTo);
+    if (item.dueAt) meta.push("\u00e9ch\u00e9ance " + docDate(item.dueAt));
+    return '<div class="lrow" style="cursor:default"><span class="li" style="background:var(--primary-soft);color:var(--primary-600)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="m8 12 2.5 2.5L16 9"/></svg></span>' +
+      '<div><div class="lt">' + escapeHtml(item.title) + '</div><div class="ls">' + escapeHtml(meta.join(" \u00b7 ")) + '</div></div>' +
+      '<div class="lx"><span class="b ' + badgeCls + '">' + escapeHtml(TASK_STATUS_LABEL[item.status] || item.status) + '</span></div></div>';
+  }
+  function renderTasks(items) {
+    var host = document.getElementById("tasksList");
+    if (!host) return;
+    if (!Array.isArray(items) || !items.length) {
+      host.innerHTML = '<div class="empty-mini">Aucune t\u00e2che pour le moment.</div>';
+      return;
+    }
+    host.innerHTML = items.map(taskRow).join("");
+  }
+  var __tasks = [];
+  function loadTaches() {
+    var host = document.getElementById("tasksList");
+    return api("GET", "/tasks").then(function (items) {
+      __tasks = Array.isArray(items) ? items : [];
+      renderTasks(__tasks);
+      return items;
+    }).catch(function () {
+      if (host) host.innerHTML = '<div class="empty-mini">Impossible de charger les t\u00e2ches.</div>';
+    });
+  }
+  function setupTaches() {
+    if (page.indexOf("taches") !== 0) return;
+    loadTaches();
+    var search = document.getElementById("taskSearch");
+    if (search) {
+      search.addEventListener("input", function () {
+        var q = search.value.trim().toLowerCase();
+        if (!q) return renderTasks(__tasks);
+        renderTasks(__tasks.filter(function (t) {
+          return [t.title, t.dossier, t.assignedTo, t.assignedBy].some(function (v) { return v && String(v).toLowerCase().indexOf(q) >= 0; });
+        }));
+      });
+    }
+  }
+
   function userRow(item) {
     var initialsTxt = initials(item.name);
     var scanBtn = item.role === "collaborateur"
@@ -642,6 +1014,12 @@
       : "";
     var session = getSession();
     var isSelf = !!(session && session.email && item.email && String(session.email).toLowerCase() === String(item.email).toLowerCase());
+    var roleBtn = isSelf ? "" : (
+      '<button type="button" class="iconbtn" style="width:34px;height:34px" data-change-role data-id="' + item.id +
+      '" data-role="' + escapeHtml(item.role) + '" data-name="' + escapeHtml(item.name) +
+      '" title="Changer le rôle" aria-label="Changer le rôle de ' + escapeHtml(item.name) + '">' +
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 21H3v-5"/><path d="M21 3l-7.5 7.5"/><path d="M3 21l7.5-7.5"/></svg></button>'
+    );
     var activeBtn = isSelf ? "" : (
       item.isActive
         ? '<button type="button" class="iconbtn" style="width:34px;height:34px;color:var(--danger)" data-toggle-active data-id="' + item.id + '" data-is-active="1" data-name="' + escapeHtml(item.name) + '" title="Suspendre l\u2019accès" aria-label="Suspendre l\u2019accès"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></button>'
@@ -649,7 +1027,7 @@
     );
     return '<tr><td class="tname"><span class="av" style="background:var(--primary-soft);color:var(--primary-600);border-radius:11px;width:34px;height:34px">' + escapeHtml(initialsTxt) + '</span>' + escapeHtml(item.name) + '</td>' +
       '<td>' + escapeHtml(item.roleLabel || item.role) + '</td><td><span class="b ' + (item.isActive ? "green" : "grey") + '">' + (item.isActive ? "Actif" : "Accès suspendu") + '</span></td>' +
-      '<td style="display:flex;gap:6px"><a class="iconbtn" style="width:34px;height:34px" href="permissions.html"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg></a>' + scanBtn + activeBtn + '</td></tr>';
+      '<td style="display:flex;gap:6px"><a class="iconbtn" style="width:34px;height:34px" href="permissions.html"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg></a>' + scanBtn + roleBtn + activeBtn + '</td></tr>';
   }
   function renderUsers(items) {
     var body = document.getElementById("usersBody");
@@ -681,6 +1059,46 @@
         api("PATCH", "/users", { id: id, canScan: next }).then(function () {
           toast(next ? "Numérisation autorisée pour ce collaborateur." : "Numérisation révoquée pour ce collaborateur.", "ok");
           loadUsers();
+        });
+      });
+      body.addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-change-role]");
+        if (!btn) return;
+        e.preventDefault();
+        var id = btn.getAttribute("data-id");
+        var nom = btn.getAttribute("data-name") || "cet utilisateur";
+        var actuel = btn.getAttribute("data-role") || "";
+        var choix = [
+          { valeur: "collaborateur", libelle: "Collaborateur" },
+          { valeur: "clerc", libelle: "Clerc principal" },
+          { valeur: "admin", libelle: "Notaire · Admin" }
+        ];
+        var options = choix.map(function (c) {
+          return '<option value="' + c.valeur + '"' + (c.valeur === actuel ? " selected" : "") + ">" + c.libelle + "</option>";
+        }).join("");
+        openModal({
+          title: "Changer le rôle de " + nom,
+          ok: "Changer le rôle",
+          bodyHtml:
+            "<p>Le rôle commande l’espace de travail, les droits et l’exigence de second facteur. " +
+            "Les sessions en cours de " + escapeHtml(nom) + " seront immédiatement coupées : " +
+            "la prochaine connexion appliquera le nouveau rôle.</p>" +
+            '<div class="field"><label>Nouveau rôle</label><select class="sel" name="role">' + options + "</select></div>" +
+            '<div class="field"><label>Motif (promotion, réorganisation…)</label><textarea class="ta" name="motif" placeholder="Consigné au journal d’audit"></textarea></div>',
+          onOk: function (payload) {
+            if (!payload.role || payload.role === actuel) {
+              toast("Aucun changement de rôle demandé.", "err");
+              return;
+            }
+            if (!String(payload.motif || "").trim()) {
+              toast("Le motif est obligatoire.", "err");
+              return Promise.reject(new Error("motif manquant"));
+            }
+            return api("PATCH", "/users", { id: id, role: payload.role, motif: payload.motif }).then(function (res) {
+              toast(nom + " est désormais " + (res.roleLabel || payload.role) + ". Ses sessions ont été coupées.", "ok");
+              loadUsers();
+            });
+          }
         });
       });
       body.addEventListener("click", function (e) {
@@ -870,12 +1288,91 @@
       });
     });
     api("GET", "/settings").then(function (settings) {
-      var fields = { cabinet_name: settings.cabinet_name, city: settings.city, codification_policy: settings.codification_policy, storage_mode: settings.storage_mode };
+      var pra = settings.praPca || {};
+      var fields = { cabinet_name: settings.cabinet_name, city: settings.city, codification_policy: settings.codification_policy, storage_mode: settings.storage_mode,
+        rtoMinutes: pra.rtoMinutes, rpoMinutes: pra.rpoMinutes };
       Object.keys(fields).forEach(function (key) { var el = document.querySelector('[name="' + key + '"]'); if (el && fields[key] != null) el.value = fields[key]; });
     });
     Array.from(document.querySelectorAll("button.btn.pri")).filter(function (b) { return /enregistrer/i.test(b.textContent); }).forEach(function (btn) {
       btn.addEventListener("click", function () {
-        api("PUT", "/settings", collectFields()).then(function () { toast("Configuration enregistrée.", "ok"); });
+        var donnees = collectFields();
+        // RTO/RPO : le serveur attend un objet `praPca` ; envoyés à plat, ils
+        // n'étaient jamais enregistrés.
+        if (donnees.rtoMinutes || donnees.rpoMinutes) {
+          donnees.praPca = { rtoMinutes: Number(donnees.rtoMinutes) || 240, rpoMinutes: Number(donnees.rpoMinutes) || 60,
+            recoveryOrder: ["database", "keys", "documents", "rights", "audit"] };
+        }
+        api("PUT", "/settings", donnees).then(function () { toast("Configuration enregistrée.", "ok"); })
+          .catch(function (err) { toast(err.message || "Enregistrement impossible.", "err"); });
+      });
+    });
+    setupModelesChecklist();
+  }
+
+  /* Modèles de checklist par type d'affaire (API /checklist-templates). */
+  function setupModelesChecklist() {
+    var liste = document.getElementById("modelesListe");
+    if (!liste) return;
+    var selDomaine = document.getElementById("modeleDomaine");
+    var selType = document.getElementById("modeleType");
+    var compte = document.getElementById("modelesCompte");
+    var libelles = {};
+    function chargerModeles() {
+      return api("GET", "/checklist-templates?domaine=" + encodeURIComponent(selDomaine.value)).then(function (modeles) {
+        compte.textContent = modeles.length + " pièce(s)";
+        liste.innerHTML = modeles.length ? modeles.map(function (m) {
+          return '<tr data-id="' + m.id + '"><td><b>' + escapeHtml(m.label) + '</b></td>' +
+            '<td>' + escapeHtml(m.typeCode ? (libelles[m.typeCode] || m.typeCode) : "—") + '</td>' +
+            '<td><input type="checkbox" data-champ="required"' + (m.required ? " checked" : "") + ' aria-label="Obligatoire"></td>' +
+            '<td><input type="number" min="0" max="365" data-champ="reminderDays" value="' + (m.reminderDays == null ? "" : m.reminderDays) + '" placeholder="défaut" style="width:84px" aria-label="Délai de relance en jours"></td>' +
+            '<td><input type="checkbox" data-champ="active"' + (m.active ? " checked" : "") + ' aria-label="Active"></td>' +
+            '<td><span class="muted" style="font-size:11.5px" data-etat></span></td></tr>';
+        }).join("") : '<tr><td colspan="6" class="muted" style="text-align:center;padding:18px">Aucune pièce pour ce type d\'affaire. Ajoutez-en ci-dessous ou chargez les modèles proposés.</td></tr>';
+      }).catch(function (err) { liste.innerHTML = '<tr><td colspan="6" class="muted">' + escapeHtml(err.message || "Chargement impossible.") + "</td></tr>"; });
+    }
+    api("GET", "/referentiels").then(function (refs) {
+      selDomaine.innerHTML = (refs.domaines || []).map(function (d) { return '<option value="' + escapeHtml(d.code) + '">' + escapeHtml(d.label) + "</option>"; }).join("");
+      selType.innerHTML = '<option value="">— Aucun (rattachement manuel)</option>' + (refs.typesDocuments || []).map(function (g) {
+        return '<optgroup label="' + escapeHtml(g.categorie) + '">' + g.options.map(function (o) {
+          libelles[o.code] = o.label;
+          return '<option value="' + escapeHtml(o.code) + '">' + escapeHtml(o.label) + "</option>";
+        }).join("") + "</optgroup>";
+      }).join("");
+      selDomaine.value = "VEN";
+      chargerModeles();
+    });
+    selDomaine.addEventListener("change", chargerModeles);
+    // Modification en ligne : chaque changement est enregistré (et journalisé).
+    liste.addEventListener("change", function (e) {
+      var champ = e.target.getAttribute("data-champ");
+      var ligne = e.target.closest("tr[data-id]");
+      if (!champ || !ligne) return;
+      var corps = { id: Number(ligne.getAttribute("data-id")) };
+      corps[champ] = e.target.type === "checkbox" ? e.target.checked : (e.target.value === "" ? null : Number(e.target.value));
+      var etat = ligne.querySelector("[data-etat]");
+      api("PATCH", "/checklist-templates", corps).then(function () { if (etat) etat.textContent = "Enregistré"; })
+        .catch(function (err) { toast(err.message || "Modification impossible.", "err"); chargerModeles(); });
+    });
+    document.getElementById("modeleAjouter").addEventListener("click", function () {
+      var libelle = document.getElementById("modeleLibelle").value.trim();
+      if (!libelle) return toast("Indiquez le nom de la pièce attendue.", "err");
+      api("POST", "/checklist-templates", { domaine: selDomaine.value, label: libelle, typeCode: selType.value,
+        required: document.getElementById("modeleRequis").checked }).then(function () {
+        document.getElementById("modeleLibelle").value = "";
+        toast("Pièce ajoutée au modèle.", "ok");
+        chargerModeles();
+      }).catch(function (err) { toast(err.message || "Ajout impossible.", "err"); });
+    });
+    document.getElementById("modelesProposes").addEventListener("click", function () {
+      openModal({
+        title: "Charger les modèles proposés", ok: "Charger",
+        text: "Ajoute une liste de pièces proposée pour chaque type d'affaire (vente, succession, donation, société…). Vos ajustements existants ne sont jamais écrasés. Ces listes sont une proposition : relisez-les et adaptez-les à la pratique de l'étude.",
+        onOk: function () {
+          return api("POST", "/checklist-templates/proposes", {}).then(function (res) {
+            toast(res.ajoutes ? res.ajoutes + " pièce(s) ajoutée(s) aux modèles." : "Les modèles proposés étaient déjà chargés.", "ok");
+            return chargerModeles();
+          });
+        }
       });
     });
   }
@@ -907,14 +1404,96 @@
       if (cloudStatus) cloudStatus.textContent = cloud.configured ? "Stockage cloud configuré" : "Action requise : configurer le stockage cloud";
       var last = document.getElementById("backupRestoreLast");
       if (last) last.textContent = test ? stamp(test.createdAt) + " — " + (test.status === "success" ? "réussi" : "échoué") : "Aucun test exécuté";
+      var drill = document.getElementById("backupDrillLast");
+      if (drill) drill.textContent = data.lastDrill ? stamp(data.lastDrill.createdAt) + " — " + (data.lastDrill.status === "success" ? "réussi" : "échoué") : "Pas encore exécuté";
+      var fresh = document.getElementById("backupFreshness");
+      if (fresh && data.freshness) {
+        fresh.textContent = data.freshness.ageHours === null ? "Aucune sauvegarde réussie"
+          : (data.freshness.ok ? "À jour" : "En retard") + " — il y a " + data.freshness.ageHours + " h (tolérance " + data.freshness.limitHours + " h)";
+        fresh.style.color = data.freshness.ok ? "" : "var(--danger)";
+      }
+      var escrow = document.getElementById("backupEscrow");
+      if (escrow && data.keyEscrow) {
+        var manquantes = data.keyEscrow.missingKeyIds || [];
+        escrow.textContent = manquantes.length ? "NON — exportez le paquet de récupération (Configuration)" : "Oui";
+        escrow.style.color = manquantes.length ? "var(--danger)" : "";
+      }
+      var KINDS = { backup: "Sauvegarde complète", restore_test: "Test de restauration", restore_drill: "Exercice PRA" };
       var history = document.getElementById("backupHistoryBody");
       if (history) history.innerHTML = (data.history || []).length ? data.history.map(function (run) {
         var good = run.status === "success";
-        return "<tr><td>" + escapeHtml(stamp(run.createdAt)) + "</td><td>Test d'intégrité</td><td>" + escapeHtml(formatBytes(run.checkedBytes)) + "</td><td><span class=\"b " + (good ? "green" : "warn") + "\">" + (good ? "Réussie" : "Échouée") + "</span></td></tr>";
-      }).join("") : '<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">Aucun test de restauration n\'a encore été exécuté.</td></tr>';
+        var kind = (KINDS[run.kind] || "Contrôle") + (run.prunedAt ? " (retirée par la rotation)" : "");
+        return "<tr><td>" + escapeHtml(stamp(run.createdAt)) + "</td><td>" + escapeHtml(kind) + "</td><td>" + escapeHtml(run.kind === "backup" ? (run.checkedDocuments || 0) + " document(s)" : formatBytes(run.checkedBytes)) + "</td><td><span class=\"b " + (good ? "green" : "red") + "\" title=\"" + escapeHtml(run.message || "") + "\">" + (good ? "Réussie" : "Échouée") + "</span></td></tr>";
+      }).join("") : '<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">Aucune sauvegarde ni test n\'a encore été exécuté.</td></tr>';
     }
     function loadBackup() { return api("GET", "/backups").then(renderBackup); }
     loadBackup();
+
+    // --- Supervision des automatisations --------------------------------
+    var STATUT_JOB = { "succès": ["green", "Réussi"], "échec": ["red", "Échoué"], "en_cours": ["blue", "En cours"], "demandé": ["warn", "Demandé"] };
+    function renderJobs(data) {
+      var state = document.getElementById("workerState");
+      var workers = data.workers || [];
+      if (state) {
+        var vivants = workers.filter(function (w) { return w.alive; }).length;
+        state.className = "b " + (!workers.length ? "red" : (vivants === workers.length ? "green" : "red"));
+        state.textContent = !workers.length ? "Aucun exécutant démarré" : vivants + "/" + workers.length + " exécutant(s) actif(s)";
+      }
+      var body = document.getElementById("jobsBody");
+      if (!body) return;
+      body.innerHTML = (data.jobs || []).map(function (job) {
+        var run = job.lastRun, badge = run ? (STATUT_JOB[run.status] || ["grey", run.status]) : ["grey", "Jamais exécuté"];
+        var detail = run ? escapeHtml(stamp(run.finishedAt || run.startedAt || run.requestedAt)) + '<br><span class="muted" style="font-size:11.5px">' + escapeHtml((run.message || "").slice(0, 140)) + "</span>" : '<span class="muted">—</span>';
+        var action = job.requestPending ? '<span class="b warn">Demande en attente</span>'
+          : '<button type="button" class="btn" style="padding:6px 12px;font-size:12px" data-run-job="' + escapeHtml(job.name) + '">Exécuter</button>';
+        return "<tr><td><b>" + escapeHtml(job.label) + "</b></td><td>" + escapeHtml(job.schedule) + "</td><td>" + detail + '</td><td><span class="b ' + badge[0] + '">' + escapeHtml(badge[1]) + "</span></td><td>" + action + "</td></tr>";
+      }).join("") || '<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">Aucun travail enregistré.</td></tr>';
+    }
+    function loadJobs() { return api("GET", "/automation/jobs").then(renderJobs).catch(function () {}); }
+    var GRAVITE = { moyenne: "warn", haute: "red", critique: "red" };
+    function renderAlerts(data) {
+      var count = document.getElementById("alertsCount");
+      if (count) { count.className = "b " + (data.open ? "red" : "green"); count.textContent = data.open ? data.open + " ouverte(s)" : "Aucune alerte ouverte"; }
+      var body = document.getElementById("alertsBody");
+      if (!body) return;
+      body.innerHTML = (data.entries || []).map(function (a) {
+        var ouverte = a.status === "ouverte";
+        var action = ouverte ? '<button type="button" class="btn" style="padding:6px 12px;font-size:12px" data-handle-alert="' + a.id + '">Marquer traitée</button>'
+          : '<span class="muted" style="font-size:11.5px">' + escapeHtml((a.handledBy || "") + " — " + (a.handlingNote || "")) + "</span>";
+        return "<tr><td>" + escapeHtml(stamp(a.createdAt)) + '</td><td><span class="b ' + (GRAVITE[a.severity] || "grey") + '">' + escapeHtml(a.severity) + "</span></td><td><b>" + escapeHtml(a.title) + '</b><br><span class="muted" style="font-size:11.5px">' + escapeHtml(a.message) + "</span></td><td>" + (ouverte ? "Ouverte" : "Traitée") + "</td><td>" + action + "</td></tr>";
+      }).join("") || '<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">Aucune alerte de sécurité.</td></tr>';
+    }
+    function loadAlerts() { return api("GET", "/security/alerts?limit=30").then(renderAlerts).catch(function () {}); }
+    loadJobs();
+    loadAlerts();
+    setInterval(function () { if (!document.hidden) { loadJobs(); } }, 30000);
+    document.addEventListener("click", function (e) {
+      var runBtn = e.target.closest("[data-run-job]");
+      if (runBtn) {
+        var name = runBtn.getAttribute("data-run-job");
+        api("POST", "/automation/jobs/" + encodeURIComponent(name) + "/runs", {}).then(function () {
+          toast("Demande transmise à l'exécutant : le travail démarre dans les secondes qui viennent.", "ok");
+          loadJobs();
+          setTimeout(function () { loadJobs(); loadBackup(); }, 8000);
+        }).catch(function (err) { toast(err.message || "Demande impossible.", "err"); });
+        return;
+      }
+      var alertBtn = e.target.closest("[data-handle-alert]");
+      if (alertBtn) {
+        var id = alertBtn.getAttribute("data-handle-alert");
+        openModal({
+          title: "Traiter l'alerte", ok: "Marquer traitée",
+          bodyHtml: '<div class="field"><label>Vérifications effectuées / décision</label><textarea class="ta" name="note" placeholder="Ex. : le collaborateur a confirmé l\'export pour un rendez-vous client."></textarea></div>',
+          onOk: function (payload) {
+            if (!String(payload.note || "").trim()) { toast("Indiquez ce qui a été vérifié.", "err"); return Promise.reject(); }
+            return api("PATCH", "/security/alerts/" + encodeURIComponent(id), { status: "traitée", note: payload.note }).then(function () {
+              toast("Alerte marquée traitée.", "ok");
+              return loadAlerts();
+            });
+          }
+        });
+      }
+    });
     var backupBtn = document.createElement("button");
     backupBtn.className = "btn block";
     backupBtn.style.marginTop = "10px";
@@ -946,12 +1525,45 @@
   function setupAudit() {
     if (page.indexOf("journal") !== 0) return;
     if (!can("audit")) return;
-    if (!cfg.useMock) api("GET", "/audit?scope=" + (cfg.role === "admin" ? "cabinet" : "me")).then(function (logs) {
+    // Le cahier des charges exige l'ancienne ET la nouvelle valeur pour les
+    // événements qui modifient un droit ou une classification. Elles étaient
+    // écrites en base et ne sortaient d'aucune API : le journal était
+    // consultable sans être exploitable. On les rend ici lisibles.
+    function auditDetails(details) {
+      if (!details || typeof details !== "object") return "";
+      var bouts = [];
+      if (details.previous !== undefined || details.next !== undefined) {
+        bouts.push("\u00ab\u00a0" + escapeHtml(String(details.previous == null ? "\u2014" : details.previous)) + "\u00a0\u00bb \u2192 \u00ab\u00a0" + escapeHtml(String(details.next == null ? "\u2014" : details.next)) + "\u00a0\u00bb");
+      }
+      if (details.motif) bouts.push("Motif\u00a0: " + escapeHtml(String(details.motif)));
+      if (details.propagation) {
+        var p = details.propagation;
+        bouts.push("\u00ab\u00a0" + escapeHtml(String(p.niveau_precedent)) + "\u00a0\u00bb \u2192 \u00ab\u00a0" + escapeHtml(String(p.niveau_suivant)) + "\u00a0\u00bb (" + p.pieces_relevees + " pi\u00e8ce(s) relev\u00e9e(s), " + p.pieces_abaissees + " abaiss\u00e9e(s))");
+      }
+      if (details.nombre !== undefined) bouts.push(details.nombre + " habilitation(s)");
+      if (details.pieces_omises) bouts.push(details.pieces_exportees + " pi\u00e8ce(s) export\u00e9e(s), " + details.pieces_omises + " omise(s) faute d'habilitation");
+      if (details.sessions_revoquees) bouts.push("sessions r\u00e9voqu\u00e9es");
+      if (!bouts.length) return "";
+      return '<div class="ls" style="margin-top:3px;opacity:.85">' + bouts.join(" \u00b7 ") + "</div>";
+    }
+    if (!cfg.useMock) api("GET", "/audit?scope=" + (cfg.role === "admin" ? "cabinet" : "me")).then(function (data) {
+      // Le journal renvoie { total, returned, entries } ; on accepte aussi un
+      // tableau nu pour ne dépendre d'aucun ordre de déploiement.
+      var logs = Array.isArray(data) ? data : ((data && data.entries) || []);
+      var total = Array.isArray(data) ? logs.length : ((data && data.total) || logs.length);
       var card = document.querySelector(".wrap .card");
-      if (!card || !Array.isArray(logs)) return;
-      card.innerHTML = logs.length ? logs.map(function (log) {
-        return '<div class="lrow"><span class="li" style="background:var(--primary-soft);color:var(--primary)">◷</span><div><div class="lt">' + escapeHtml(log.user) + '</div><div class="ls">' + escapeHtml(log.action.replace(/_/g, " ")) + (log.targetId ? " — " + escapeHtml(log.targetId) : "") + '</div></div><div class="lx"><span class="ls">' + docDate(log.timestamp) + '</span></div></div>';
-      }).join("") : '<div class="lrow"><div><div class="lt">Aucune activité</div><div class="ls">Les actions réalisées apparaîtront ici.</div></div></div>';
+      if (!card) return;
+      if (!logs.length) {
+        card.innerHTML = '<div class="lrow"><div><div class="lt">Aucune activit\u00e9</div><div class="ls">Les actions r\u00e9alis\u00e9es appara\u00eetront ici.</div></div></div>';
+        return;
+      }
+      var reste = total > logs.length
+        ? '<div class="lrow"><div><div class="ls">' + logs.length + " entr\u00e9e(s) affich\u00e9e(s) sur " + total + ". L'export CSV contient le journal complet et le d\u00e9tail de chaque \u00e9v\u00e9nement.</div></div></div>"
+        : "";
+      card.innerHTML = logs.map(function (log) {
+        var echec = log.result && log.result !== "success";
+        return '<div class="lrow"><span class="li" style="background:var(--' + (echec ? "danger-soft);color:var(--danger" : "primary-soft);color:var(--primary") + ')">' + (echec ? "\u2717" : "\u25f7") + '</span><div><div class="lt">' + escapeHtml(log.user) + '</div><div class="ls">' + escapeHtml(log.action.replace(/_/g, " ")) + (log.targetId ? " \u2014 " + escapeHtml(log.targetId) : "") + "</div>" + auditDetails(log.details) + '</div><div class="lx"><span class="ls">' + docDate(log.timestamp) + "</span></div></div>";
+      }).join("") + reste;
     });
     var exportBtn = Array.from(document.querySelectorAll("a.btn,.btn")).find(function (b) { return /export csv/i.test(b.textContent); });
     if (exportBtn) {
@@ -1219,19 +1831,19 @@
             title: "Contrôle qualité de la numérisation",
             ok: "Valider le contrôle",
             bodyHtml:
-              '<div class="field"><label><input type="checkbox" name="complete" checked> Document complet</label></div>' +
-              '<div class="field"><label><input type="checkbox" name="ordered" checked> Pages dans le bon ordre</label></div>' +
-              '<div class="field"><label><input type="checkbox" name="legible" checked> Lisible</label></div>' +
-              '<div class="field"><label><input type="checkbox" name="noMissingPage" checked> Aucune page manquante</label></div>' +
-              '<div class="field"><label><input type="checkbox" name="noDuplicate" checked> Aucun doublon</label></div>' +
-              '<div class="field"><label><input type="checkbox" name="orientationCorrect" checked> Orientation correcte</label></div>' +
-              '<div class="field"><label><input type="checkbox" name="dossierCorrect" checked> Bon dossier / bonne affaire</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="complete"> Document complet</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="ordered"> Pages dans le bon ordre</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="legible"> Lisible</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="noMissingPage"> Aucune page manquante</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="noDuplicate"> Aucun doublon</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="orientationCorrect"> Orientation correcte</label></div>' +
+              '<div class="field"><label><input type="checkbox" name="dossierCorrect"> Bon dossier / bonne affaire</label></div>' +
               '<div class="field"><label>Notes (optionnel)</label><textarea class="inp" name="notes" rows="2"></textarea></div>',
             onOk: function (payload) {
               var checks = {};
               ["complete", "ordered", "legible", "noMissingPage", "noDuplicate", "orientationCorrect", "dossierCorrect"].forEach(function (key) {
                 var box = document.querySelector('.modal-backdrop [name="' + key + '"]');
-                checks[key] = box ? box.checked : true;
+                checks[key] = box ? box.checked : false;
               });
               return api("POST", "/documents/" + encodeURIComponent(ref || "current") + "/quality-check", { checks: checks, notes: payload.notes || "" }).then(function (doc) {
                 toast(doc.quality_passed ? "Contrôle qualité validé : document en attente de validation notariale." : "Contrôle qualité échoué : document renvoyé à corriger.", doc.quality_passed ? "ok" : "err");
@@ -1244,7 +1856,21 @@
     });
   }
 
+  // Lien de la notification vers ce qu'elle concerne (pièce, dossier, tâche,
+  // supervision) : l'utilisateur agit sans devoir rechercher.
+  function notificationHref(item) {
+    var id = encodeURIComponent(item.targetId || "");
+    switch (item.targetType) {
+      case "document": return id ? "document-detail.html?ref=" + id : "";
+      case "dossier": return id ? "dossier-detail.html?ref=" + id : "";
+      case "task": return "taches.html";
+      case "job": case "backup": case "security_alert": return "sauvegarde.html#supervision";
+      default: return "";
+    }
+  }
   var NOTIF_ICONS = {
+    alerte: { bg: "var(--danger-soft)", fg: "var(--danger)", path: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0"/><path d="M12 9v4"/><path d="M12 17h.01"/>' },
+    attention: { bg: "var(--warn-soft)", fg: "#A9740A", path: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
     backup: { bg: "var(--green-soft)", fg: "#1E9C72", path: '<path d="m5 12 4 4 10-10"/>' },
     permission_granted: { bg: "var(--warn-soft)", fg: "#A9740A", path: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="m9 12 2 2 4-4"/>' },
     document: { bg: "var(--blue-soft)", fg: "#2E6FD6", path: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/>' }
@@ -1265,8 +1891,9 @@
     return docDate(iso);
   }
   function notificationRow(item) {
-    var icon = NOTIF_ICONS[item.type] || NOTIF_ICONS.document;
-    return '<div class="lrow" data-id="' + item.id + '" style="cursor:pointer' + (item.read ? ";opacity:.6" : "") + '"><span class="li" style="background:' + icon.bg + ';color:' + icon.fg + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon.path + '</svg></span>' +
+    var grave = item.severity === "haute" || item.severity === "critique";
+    var icon = grave ? NOTIF_ICONS.alerte : (item.severity === "attention" ? NOTIF_ICONS.attention : (NOTIF_ICONS[item.type] || NOTIF_ICONS.document));
+    return '<div class="lrow" data-id="' + item.id + '" data-href="' + escapeHtml(notificationHref(item)) + '" style="cursor:pointer' + (item.read ? ";opacity:.6" : "") + '"><span class="li" style="background:' + icon.bg + ';color:' + icon.fg + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon.path + '</svg></span>' +
       '<div><div class="lt">' + escapeHtml(item.title || "Notification") + '</div><div class="ls">' + escapeHtml(item.message || "") + '</div></div>' +
       '<div class="lx"><span class="ls">' + timeAgo(item.createdAt) + '</span></div></div>';
   }
@@ -1294,6 +1921,11 @@
   }
   function setupNotifications() {
     refreshNotifDot();
+    // Les rappels et alertes naissent côté serveur, sans action de
+    // l'utilisateur : la cloche se rafraîchit seule (onglet visible
+    // uniquement, pour ne pas solliciter le serveur inutilement).
+    setInterval(function () { if (!document.hidden) refreshNotifDot(); }, 60000);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshNotifDot(); });
     if (page.indexOf("notifications") !== 0) return;
     loadNotifications();
     var host = document.getElementById("notificationsList");
@@ -1302,9 +1934,11 @@
         var row = e.target.closest(".lrow");
         if (!row) return;
         var id = row.getAttribute("data-id");
+        var href = row.getAttribute("data-href");
         api("PATCH", "/notifications/read", { id: id }).then(function () {
           row.style.opacity = ".6";
           refreshNotifDot();
+          if (href) window.location.href = href;
         });
       });
     }
@@ -1357,6 +1991,7 @@
   if (!guardPage()) return;
   applySessionIdentity(__session);
   wireLogout();
+  surveillerInactivite();
   setupNav();
   setupNavTooltips();
   setupBackButtons();
@@ -1367,8 +2002,11 @@
   setupTables();
   setupRecherche();
   setupProfil();
+    if (page.indexOf("profil") === 0) setupSecuriteConnexion();
   setupScan();
   setupDossiers();
+  setupClients();
+  setupTaches();
   function setupKeyManagement() {
     if (page !== "configuration.html") return;
     var box=document.getElementById("keyStatus");
@@ -1450,10 +2088,91 @@
   setupNotifications();
   setupAccessLinks();
   setupFilterBtn();
+  setupPasswordToggles();
+  function setupPasswordToggles() {
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest(".toggle-eye");
+      if (!btn) return;
+      var input = document.getElementById(btn.getAttribute("data-target"));
+      if (!input) return;
+      var show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.setAttribute("aria-label", show ? "Masquer le mot de passe" : "Afficher le mot de passe");
+    });
+  }
   function alertRow(icon, title, message, href) {
     return '<a class="lrow" href="' + href + '" style="cursor:pointer;text-decoration:none;color:inherit"><span class="li" style="background:' + icon.bg + ';color:' + icon.fg + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon.path + '</svg></span>' +
       '<div><div class="lt">' + escapeHtml(title) + '</div><div class="ls">' + escapeHtml(message) + '</div></div></a>';
   }
+  /* La tuile « sauvegarde » affichait « 100 % — 30/30 jours » en dur : elle
+     restait au vert même si aucune sauvegarde n'avait jamais tourné, ce qui
+     est exactement le contraire de ce qu'on attend d'un indicateur. Elle lit
+     désormais l'état réel renvoyé par /api/backups. */
+  function renderBackupTile() {
+    var valeur = document.getElementById("statBackup");
+    var tendance = document.getElementById("statBackupTrend");
+    if (!valeur && !tendance) return;
+    api("GET", "/backups").then(function (data) {
+      var derniere = data && data.lastBackup;
+      if (!derniere) {
+        if (valeur) valeur.textContent = "Jamais";
+        if (tendance) {
+          tendance.className = "b red";
+          tendance.textContent = "Aucune sauvegarde enregistrée";
+        }
+        return;
+      }
+      var reussie = derniere.status === "success";
+      if (valeur) valeur.textContent = derniere.createdAt ? docDate(derniere.createdAt) : "—";
+      if (tendance) {
+        tendance.className = reussie ? "b green" : "b red";
+        tendance.textContent = reussie
+          ? (derniere.checkedDocuments || 0) + " document(s) sauvegardé(s)"
+          : "Dernière sauvegarde en échec";
+      }
+    }).catch(function () {
+      if (valeur) valeur.textContent = "—";
+      if (tendance) { tendance.className = "b grey"; tendance.textContent = "État indisponible"; }
+    });
+  }
+
+  /* Carte « Alertes » de l'accueil : état RÉEL de l'étude. Elle affichait
+     jusqu'ici en dur « Sauvegarde OK · Réplication terminée » et « 5 documents
+     à indexer », quelle que soit la réalité. */
+  function renderAlertesReelles(data) {
+    var hote = document.getElementById("alertesReelles");
+    if (!hote) return;
+    var ICONES = {
+      ok: { bg: "var(--green-soft)", fg: "#1E9C72", path: '<path d="m5 12 4 4 10-10"/>' },
+      info: { bg: "var(--blue-soft)", fg: "#2E6FD6", path: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01"/><path d="M11 12h1v4h1"/>' },
+      attention: { bg: "var(--warn-soft)", fg: "#A9740A", path: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
+      danger: { bg: "var(--danger-soft)", fg: "var(--danger)", path: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0"/><path d="M12 9v4"/><path d="M12 17h.01"/>' }
+    };
+    function ligne(icone, titre, texte, lien) {
+      var i = ICONES[icone];
+      var contenu = '<span class="li" style="background:' + i.bg + ';color:' + i.fg + '"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + i.path + '</svg></span>' +
+        '<div><div class="lt">' + escapeHtml(titre) + '</div><div class="ls">' + escapeHtml(texte) + '</div></div>';
+      return lien ? '<a class="lrow" href="' + lien + '" style="padding:13px 4px;text-decoration:none;color:inherit">' + contenu + '</a>'
+        : '<div class="lrow" style="padding:13px 4px">' + contenu + '</div>';
+    }
+    var lignes = [];
+    var auto = data.automatisations;
+    if (auto) {
+      var travailleurs = auto.travailleurs || [];
+      var actifs = travailleurs.filter(function (w) { return w.alive; }).length;
+      if (!travailleurs.length || actifs < travailleurs.length) lignes.push(ligne("danger", "Automatisations arrêtées", "Rappels, OCR et sauvegardes ne tournent plus : vérifiez les exécutants.", "sauvegarde.html#supervision"));
+      if ((auto.travauxEnEchec || []).length) lignes.push(ligne("danger", "Travaux en échec", auto.travauxEnEchec.join(", "), "sauvegarde.html#supervision"));
+      lignes.push(auto.sauvegardeAJour ? ligne("ok", "Sauvegarde à jour", "Dernière sauvegarde réussie dans le délai prévu.", "sauvegarde.html")
+        : ligne("danger", "Sauvegarde en retard", "Aucune sauvegarde réussie récente : intervention requise.", "sauvegarde.html"));
+    }
+    if (data.alertesOuvertesCount) lignes.push(ligne("danger", data.alertesOuvertesCount + " alerte(s) de sécurité", "À examiner et marquer traitées.", "sauvegarde.html#supervision"));
+    if (data.ocr && data.ocr.echecs) lignes.push(ligne("attention", data.ocr.echecs + " OCR en échec", "Texte non extrait : relancez l'OCR depuis la fiche.", "documents.html"));
+    if (data.pendingIndexationCount) lignes.push(ligne("info", data.pendingIndexationCount + " document(s) à indexer", "File de numérisation.", "scan.html"));
+    if (data.dossiersIncompletsCount) lignes.push(ligne("attention", data.dossiersIncompletsCount + " dossier(s) incomplet(s)", (data.piecesManquantesCount || 0) + " pièce(s) obligatoire(s) manquante(s).", "dossiers.html"));
+    if ((data.echeances || []).length) lignes.push(ligne("info", data.echeances.length + " échéance(s) à venir", "Vos tâches ouvertes datées.", "taches.html"));
+    hote.innerHTML = lignes.length ? lignes.join("") : ligne("ok", "Rien à signaler", "Aucune alerte en cours.", null);
+  }
+
   function setupDashboard() {
     if (page.indexOf("index") !== 0) return;
     api("GET", "/dashboard/summary").then(function (data) {
@@ -1463,6 +2182,7 @@
       if (elDocs) elDocs.textContent = data.documentsArchivedCount;
       if (elDossiers) elDossiers.textContent = data.dossiersCount;
       if (elUsers) elUsers.textContent = data.activeUsersCount;
+      renderBackupTile();
       var heroTitle = document.querySelector(".hero h3");
       if (heroTitle) heroTitle.textContent = "Bonjour " + (__session.name || "");
       var heroSummary = document.getElementById("heroSummary");
@@ -1487,6 +2207,7 @@
         }
       }
       renderDocuments(data.recentDocuments);
+      renderAlertesReelles(data);
     });
   }
 

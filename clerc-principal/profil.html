@@ -2,12 +2,14 @@
 <html lang="fr" data-theme="clerc">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
 <title>GED Notaire — Profil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<meta name="theme-color" content="#F6F9FD">
+<link rel="stylesheet" href="../assets/responsive.css">
 </head>
 <body data-theme="clerc" data-role="clerc">
   <div class="app">
@@ -39,7 +41,8 @@
           <div class="sec-h"><h2>Informations</h2></div>
           <div class="field"><label>Nom complet</label><input class="inp" name="name" value="" autocomplete="name"></div>
           <div class="field"><label>E-mail professionnel</label><input class="inp" name="email" value="" readonly aria-readonly="true"></div>
-          <div class="field"><label>Authentification à deux facteurs</label><div class="seg"><span class="opt on">Activée</span><span class="opt">Désactivée</span></div></div>
+          <div class="field"><label>Application d'authentification</label><div id="totpZone" class="muted" style="font-size:13px;line-height:1.5">Chargement…</div></div>
+          <div class="field"><label>Mot de passe</label><div><button type="button" class="btn" id="changerMotDePasse">Changer le mot de passe</button></div></div>
         </div>
         <div class="card"><div class="sec-h"><h2>Mon socle d'accès</h2></div>
           <ul class="scope-list" style="padding:6px"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Tous les documents de niveau standard et restreint du cabinet</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Numérisation, indexation et codification des actes</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Consultation des dossiers clients</li><li class="off"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg> Documents confidentiels (accès sur attribution du notaire)</li><li class="off"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg> Création de comptes et gestion des permissions</li><li class="off"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg> Sauvegarde et configuration du cabinet</li></ul>
@@ -51,5 +54,6 @@
   </div>
   <script src="assets/config.js"></script>
   <script src="assets/app.js"></script>
+<script src="../assets/responsive.js"></script>
 </body>
 </html>

@@ -1,8 +1,10 @@
 from django.urls import path
-from .views import ClientDirectoryView, DossierAssignmentView, DossierChecklistView, DossierDetailView, DossierExportView, DossierView, PhysicalArchiveView
+from .views import ChecklistTemplateProposesView, ChecklistTemplateView, ClientDirectoryView, DossierAssignmentView, DossierChecklistView, DossierDetailView, DossierExportView, DossierView, PhysicalArchiveView
 
 urlpatterns = [
     path("clients", ClientDirectoryView.as_view()),
+    path("checklist-templates", ChecklistTemplateView.as_view()),
+    path("checklist-templates/proposes", ChecklistTemplateProposesView.as_view()),
     path("dossiers", DossierView.as_view()),
     path("dossiers/<str:reference>", DossierDetailView.as_view()),
     path("dossiers/<str:reference>/assignments", DossierAssignmentView.as_view()),

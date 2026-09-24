@@ -1,9 +1,12 @@
 from django.urls import path
-from .views import (CheckInviteView, ForgotResetView, ForgotSendCodeView, ForgotVerifyCodeView, GoogleOAuthCompleteView, GoogleOAuthConsumeView, GoogleOAuthStartView, LoginView, LogoutView, MeView, MFAVerifyView, OAuthStubView, RegisterCompleteView, RegisterStartView, SendRegisterCodeView, UserCreateView, VerifyRegisterCodeView)
+from .totp_views import TotpConfirmView, TotpDisableView, TotpSetupView, TotpStatusView
+from .views import (ChangePasswordView, CheckInviteView, ForgotResetView, ForgotSendCodeView, ForgotVerifyCodeView, GoogleOAuthCompleteView, GoogleOAuthConsumeView, GoogleOAuthStartView, LoginView, LogoutView, MeView, MFAVerifyView, OAuthStubView, RegisterCompleteView, RegisterStartView, SendRegisterCodeView, UserCreateView, VerifyRegisterCodeView)
 
 urlpatterns = [
-    path("auth/login", LoginView.as_view()), path("auth/me", MeView.as_view()), path("me", MeView.as_view()),
+    path("auth/login", LoginView.as_view()), path("auth/me", MeView.as_view()), path("me", MeView.as_view()), path("me/password", ChangePasswordView.as_view()),
     path("auth/mfa/verify", MFAVerifyView.as_view()),
+    path("auth/totp", TotpStatusView.as_view()), path("auth/totp/setup", TotpSetupView.as_view()),
+    path("auth/totp/confirm", TotpConfirmView.as_view()), path("auth/totp/disable", TotpDisableView.as_view()),
     path("auth/logout", LogoutView.as_view()),
     path("auth/register/start", RegisterStartView.as_view()),
     path("auth/register/check-invite", CheckInviteView.as_view()),

@@ -221,8 +221,8 @@
           setError(remailField, "Adresse e-mail invalide.");
           ok = false;
         }
-        if (rpassInput.value.length < 8 || !/[0-9]/.test(rpassInput.value)) {
-          setError(rpassField, "8 caractères minimum, avec au moins un chiffre.");
+        if (rpassInput.value.length < 12 || !/[0-9]/.test(rpassInput.value)) {
+          setError(rpassField, "12 caractères minimum, avec au moins un chiffre.");
           ok = false;
         }
         if (rpass2Input.value !== rpassInput.value || !rpass2Input.value) {

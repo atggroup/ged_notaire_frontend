@@ -13,6 +13,7 @@ import base64
 import json
 import os
 from django.conf import settings
+from django.db.utils import DatabaseError
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 LEGACY_KEY_ID = "legacy"
@@ -59,7 +60,11 @@ def active_key_id() -> str:
         from settings_app.models import CabinetSettings
         persisted = CabinetSettings.objects.filter(pk=1).values_list("data", flat=True).first() or {}
         configured = persisted.get("active_key_id") or configured
-    except Exception:
+    except DatabaseError:
+        # Table pas encore migrée (ex. premier `manage.py check` avant `migrate`) :
+        # on retombe sur la clé configurée par variable d'environnement. Toute
+        # autre exception (bug de code, erreur de type) doit remonter au lieu
+        # d'être avalée silencieusement.
         pass
     return configured or LEGACY_KEY_ID
 

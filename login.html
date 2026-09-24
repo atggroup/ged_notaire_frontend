@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
 <title>Connexion — GED Notaire</title>
 <meta name="description" content="Authentification GED Notaire — connexion, inscription et récupération de mot de passe.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -66,7 +67,7 @@
       <div class="illu-media">
         <div class="illu-media-inner">
           <div class="illu-glow"></div>
-          <img id="illuImage" src="assets/img/ILLUSTRATION_CONNEXION.png" data-fallback="assets/img/ILLUSTRATION_CONNEXION.svg" onerror="this.onerror=null;this.src=this.dataset.fallback" alt="" />
+          <img id="illuImage" src="assets/img/ILLUSTRATION_CONNEXION.png" data-fallback="assets/img/ILLUSTRATION_CONNEXION.svg" alt="" />
           <div class="illu-badge" id="illuBadge">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
           </div>
@@ -163,7 +164,8 @@
             Vérification en 2 étapes
           </div>
           <h2>Confirmez votre identité</h2>
-          <p>Code envoyé à <b id="loginOtpEmailLabel">—</b>.</p>
+          <p id="loginOtpConsigneEmail">Code envoyé à <b id="loginOtpEmailLabel">—</b>.</p>
+          <p id="loginOtpConsigneTotp" hidden>Saisissez le code à 6 chiffres affiché par votre <b>application d'authentification</b>.</p>
         </div>
 
         <div class="otp-row" id="loginOtp">
@@ -178,6 +180,14 @@
         <div class="otp-meta">
           <button type="button" class="otp-resend" id="loginOtpResend">Renvoyer le code</button>
           <span class="otp-timer" id="loginOtpTimer"></span>
+          <button type="button" class="otp-resend" id="loginSecoursToggle" hidden>Utiliser un code de secours</button>
+        </div>
+
+        <div class="field" id="f-loginSecours" hidden>
+          <label for="loginSecours">Code de secours</label>
+          <div class="inp-wrap">
+            <input class="inp" type="text" id="loginSecours" autocomplete="one-time-code" placeholder="XXXXX-XXXXX" maxlength="11" spellcheck="false">
+          </div>
         </div>
 
         <button type="button" class="btn pri" id="loginOtpSubmit" disabled>
@@ -341,7 +351,12 @@
 
               <div class="field" id="f-regPassword2">
                 <label for="regPassword2">Confirmer</label>
-                <input class="inp" type="password" id="regPassword2" name="regPassword2" placeholder="••••••••" autocomplete="new-password" required>
+                <div class="inp-wrap">
+                  <input class="inp" type="password" id="regPassword2" name="regPassword2" placeholder="••••••••" autocomplete="new-password" required style="padding-right:42px">
+                  <button type="button" class="toggle-eye" data-target="regPassword2" aria-label="Afficher le mot de passe">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
                 <div class="err-msg">Ne correspond pas.</div>
               </div>
             </div>
@@ -353,7 +368,7 @@
           </div>
 
           <ul class="pw-rules" id="regPwRules">
-            <li data-rule="len"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>8 caractères minimum</li>
+            <li data-rule="len"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>12 caractères minimum</li>
             <li data-rule="upper"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Une majuscule</li>
             <li data-rule="lower"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Une minuscule</li>
             <li data-rule="digit"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Un chiffre</li>
@@ -525,7 +540,7 @@
           </div>
 
           <ul class="pw-rules" id="forgotPwRules">
-            <li data-rule="len"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>8 caractères minimum</li>
+            <li data-rule="len"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>12 caractères minimum</li>
             <li data-rule="upper"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Une majuscule</li>
             <li data-rule="lower"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Une minuscule</li>
             <li data-rule="digit"><span class="rc-dot"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Un chiffre</li>
@@ -536,7 +551,10 @@
             <div class="field" id="f-forgotPassword2">
               <label for="forgotPassword2">Confirmer le mot de passe</label>
               <div class="inp-wrap">
-                <input class="inp" type="password" id="forgotPassword2" name="forgotPassword2" placeholder="••••••••" autocomplete="new-password" required>
+                <input class="inp" type="password" id="forgotPassword2" name="forgotPassword2" placeholder="••••••••" autocomplete="new-password" required style="padding-right:42px">
+                <button type="button" class="toggle-eye" data-target="forgotPassword2" aria-label="Afficher le mot de passe">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
               </div>
               <div class="err-msg">Les mots de passe ne correspondent pas.</div>
             </div>

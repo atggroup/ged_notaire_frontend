@@ -2,12 +2,14 @@
 <html lang="fr" data-theme="notaire">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
 <title>GED Notaire — Tableau de bord</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<meta name="theme-color" content="#FFFDFA">
+<link rel="stylesheet" href="../assets/responsive.css">
 </head>
 <body data-theme="notaire" data-role="notaire">
   <div class="app">
@@ -51,19 +53,19 @@
       <div class="stats"><div class="stat">
       <div class="ic" style="background:var(--primary-soft);color:var(--primary-600)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg></div>
       <div class="v" id="statDocuments">—</div><div class="l">Documents archivés</div>
-      <div class="tr"><span class="b green">+34 ce mois</span></div>
+      <div class="tr"><span class="b grey">Archivés définitivement</span></div>
     </div><div class="stat">
       <div class="ic" style="background:var(--blue-soft);color:var(--blue)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
       <div class="v" id="statDossiers">—</div><div class="l">Dossiers clients</div>
-      <div class="tr"><span class="b green">+8 cette semaine</span></div>
+      <div class="tr"><span class="b grey">Cabinet</span></div>
     </div><div class="stat">
       <div class="ic" style="background:var(--green-soft);color:var(--green)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 6.1"/><path d="M17.5 14.5A5.5 5.5 0 0 1 20.5 19.5"/></svg></div>
       <div class="v" id="statUsers">—</div><div class="l">Utilisateurs actifs</div>
-      <div class="tr"><span class="b grey">2 connectés</span></div>
+      <div class="tr"><span class="b grey">Comptes actifs</span></div>
     </div><div class="stat">
       <div class="ic" style="background:var(--purple-soft);color:var(--purple)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 4v5h7"/><path d="M8 14h8"/></svg></div>
-      <div class="v">100%</div><div class="l">Sauvegardes OK</div>
-      <div class="tr"><span class="b green">30 / 30 jours</span></div>
+      <div class="v" id="statBackup">—</div><div class="l">Dernière sauvegarde</div>
+      <div class="tr"><span class="b grey" id="statBackupTrend">Chargement…</span></div>
     </div></div>
       <div class="sec-h" style="margin-top:6px"><h2>Documents récents</h2><a class="link" href="documents.html">Tout voir <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></a></div>
       <div class="docs"><div class="doc">
@@ -133,10 +135,7 @@
         <ul class="scope-list" style="padding:6px"><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Tous les dossiers et documents du cabinet, sans exception</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Création des comptes, attribution et révocation des accès</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Validation des actes et paramétrage de la codification</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg> Sauvegarde, restauration et configuration du cabinet</li></ul></div>
       
       <div class="card"><div class="sec-h"><h2>Alertes</h2></div>
-        <div class="lrow" style="padding:13px 4px"><span class="li" style="background:var(--green-soft);color:#1E9C72"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4 10-10"/></svg></span>
-          <div><div class="lt">Sauvegarde OK</div><div class="ls">Réplication terminée</div></div></div>
-        <div class="lrow" style="padding:13px 4px"><span class="li" style="background:var(--blue-soft);color:#2E6FD6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg></span>
-          <div><div class="lt">5 documents à indexer</div><div class="ls">File d'attente numérisation</div></div></div>
+        <div id="alertesReelles"><div class="muted" style="padding:13px 4px;font-size:13px">Chargement…</div></div>
       </div>
     </div>
       </div>
@@ -144,5 +143,6 @@
   </div>
   <script src="assets/config.js"></script>
   <script src="assets/app.js"></script>
+<script src="../assets/responsive.js"></script>
 </body>
 </html>

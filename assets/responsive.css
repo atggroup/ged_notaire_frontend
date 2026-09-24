@@ -1,0 +1,342 @@
+/* ============================================================================
+   GED Notaire — Couche responsive partagée (3 portails)
+   Chargée APRÈS styles.css / operations.css : elle ne redéfinit que ce qui
+   concerne les petits écrans, la desktop reste strictement inchangée.
+   Points d'arrêt : 1280 / 1024 (tiroir) / 860 / 720 (tableaux) / 560 / 400
+   ========================================================================== */
+
+:root{
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
+  --gutter:32px;
+}
+
+/* Rien ne doit jamais déborder horizontalement */
+html,body{max-width:100%}
+img,svg,video{max-width:100%;height:auto}
+/* Le <canvas> du lecteur PDF garde sa taille de rendu : il défile dans
+   .doc-viewer-canvas-wrap, le brider casserait le zoom. */
+
+/* Les longues références / e-mails / SHA cassent au lieu d'élargir la page */
+.code,.kvbox b,.kv b,.row-main strong,.doc h4,.lrow .lt,td,th{overflow-wrap:anywhere}
+
+/* ============================ 1280px : densité ============================ */
+@media (max-width:1280px){
+  :root{--gutter:24px}
+  .wrap{padding:24px var(--gutter) 32px;gap:24px}
+  .top{padding:22px var(--gutter) 6px}
+  .aside{width:312px}
+}
+
+/* ================= 1024px : le rail devient un vrai tiroir ================= */
+@media (max-width:1024px){
+  :root{--gutter:16px}
+
+  /* Sur petit ecran, aucun element flex/grid ne doit refuser de retrecir */
+  .body *{min-width:0}
+
+  /* --- Tiroir de navigation large, avec libellés lisibles --- */
+  .rail{
+    width:min(80vw,272px);
+    align-items:stretch;
+    padding:calc(20px + var(--safe-t)) 14px calc(18px + var(--safe-b));
+    padding-left:calc(14px + var(--safe-l));
+    overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+  .rail .logo{margin-left:4px;flex-shrink:0}
+  .rail-nav{align-items:stretch;gap:4px;margin-top:22px}
+  .nav-i{
+    width:auto;height:auto;min-height:48px;
+    justify-content:flex-start;gap:14px;padding:0 14px;border-radius:14px;
+  }
+  .nav-i svg{flex-shrink:0}
+  /* Les info-bulles deviennent les libellés du tiroir (JS les place en
+     position:fixed au survol — on neutralise ces styles en ligne). */
+  .nav-i .tip{
+    position:static !important;
+    left:auto !important;right:auto !important;top:auto !important;bottom:auto !important;
+    transform:none !important;
+    opacity:1 !important;
+    background:transparent;color:inherit;
+    font-size:13.5px;font-weight:600;
+    padding:0;border-radius:0;box-shadow:none;
+    max-width:none;white-space:normal;
+    pointer-events:none;
+  }
+  .rail-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:12px}
+  .rail-backdrop{-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+  /* Pas de défilement de la page derrière le tiroir ouvert */
+  html.nav-locked,html.nav-locked body{overflow:hidden}
+
+  /* --- Barre du haut compacte : la recherche passe derrière une icône --- */
+  .top{
+    padding:calc(12px + var(--safe-t)) var(--gutter) 10px;
+    gap:10px;
+    align-items:center;
+    border-bottom:1px solid var(--line);
+  }
+  .top h1{font-size:17px;order:1;flex:1;min-width:0;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .menu-btn{order:0}
+  .back-btn{order:0;margin-right:0}
+  .search-toggle{order:2;display:flex}
+  .bell{order:3}
+  .who{order:4;padding:6px}
+  .top .search{display:none}
+  .app.search-open .top .search{
+    display:flex;order:9;flex-basis:100%;max-width:none;margin:2px 0 4px;
+  }
+  .top .search input{font-size:16px} /* pas de zoom auto iOS */
+
+  /* --- Contenu --- */
+  .wrap{padding:16px var(--gutter) calc(28px + var(--safe-b));gap:18px}
+  .col{gap:20px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .docs{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .hero{padding:20px 18px}
+  .hero p{max-width:none}
+
+  /* Onglets / segments : défilement horizontal plutôt qu'empilement */
+  .pill-tabs,.tabs2{
+    width:100%;max-width:100%;
+    overflow-x:auto;flex-wrap:nowrap;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  }
+  .pill-tabs::-webkit-scrollbar,.tabs2::-webkit-scrollbar{display:none}
+  .pill-tabs .pt{white-space:nowrap;flex-shrink:0}
+
+  /* Cartes en flex avec bouton poussé à droite (patron répété en inline) */
+  .card[style*="display:flex"]{flex-wrap:wrap}
+  .card[style*="display:flex"] .btn{margin-left:0 !important}
+}
+
+/* Le bouton recherche n'existe que sur mobile */
+.iconbtn.search-toggle{display:none}
+.app.search-open .search-toggle{border-color:var(--primary);color:var(--primary-600);background:var(--cream)}
+
+/* ===================== 860px : mise en page une colonne ==================== */
+@media (max-width:860px){
+  .wrap{flex-direction:column}
+  .aside{width:100%}
+  .two,.three{grid-template-columns:1fr;gap:14px}
+  .hero-ill{display:none}
+  .sec-h h2{font-size:15px}
+  .doc-viewer-status{min-height:260px !important}
+  .doc-viewer-canvas-wrap{max-height:min(62dvh,520px)}
+}
+
+/* ============ 720px : les tableaux deviennent des cartes empilées ========== */
+@media (max-width:720px){
+  .table-wrap{overflow:visible}
+  table{min-width:0;display:block;border-collapse:separate}
+  thead{
+    position:absolute;left:-9999px;top:auto;width:1px;height:1px;
+    overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
+  }
+  tbody,tr,td{display:block;width:100%}
+  tr{
+    border:1px solid var(--line);border-radius:14px;
+    background:var(--card);box-shadow:var(--shadow-sm);
+    padding:6px 14px;margin-bottom:12px;
+  }
+  tr:last-child{margin-bottom:0}
+  tr:hover td{background:transparent}
+  td{
+    border-top:1px dashed var(--line);
+    padding:10px 0;font-size:13px;
+    display:flex;align-items:flex-start;gap:14px;justify-content:space-between;
+  }
+  /* 1re cellule = titre de la carte : la valeur se suffit à elle-même */
+  td:first-child{
+    border-top:0;display:block;
+    font-size:14px;font-weight:600;
+    padding:12px 0 10px;
+  }
+  td:first-child::before{display:none}
+  td::before{
+    content:attr(data-label);
+    flex:0 0 38%;
+    font-size:10.5px;font-weight:700;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.04em;
+    padding-top:2px;
+  }
+  td:not([data-label])::before,td[data-label=""]::before{display:none}
+  /* Cellule « pleine largeur » : 1re colonne, actions, états vides */
+  td[colspan]{display:block;text-align:center;padding:16px 0}
+  td[data-fullrow]{display:block}
+  td[data-fullrow]::before{display:none}
+  td > .tname,td > div{min-width:0}
+  td .b{white-space:normal}
+
+  /* Frise de workflow : trop large, on la fait défiler proprement */
+  .workflow{padding:14px}
+  .workflow-line{min-width:600px}
+}
+
+/* ========================= 560px : téléphone ============================== */
+@media (max-width:560px){
+  :root{--r-lg:20px;--r-md:16px}
+
+  /* Cibles tactiles : 44px minimum (recommandation WCAG 2.5.5 / iOS HIG) */
+  .btn{min-height:44px;padding:11px 16px}
+  .iconbtn,.bell{width:44px;height:44px}
+  /* Les boutons d'action des tableaux portent une taille en ligne (34px)
+     posée par le JS, qui l'emporte sur la règle ci-dessus. Sur mobile, la
+     cible tactile prime : on la rétablit là où c'est nécessaire. */
+  td .iconbtn[style],.doc .iconbtn[style]{width:44px !important;height:44px !important}
+  .nav-i{min-height:50px}
+  .pill-tabs .pt{min-height:40px;padding:9px 14px}
+  .seg .opt,.mini-btn{min-height:42px;display:inline-flex;align-items:center;justify-content:center}
+  .switch{width:44px;height:26px;padding:4px}
+  .switch span{width:18px;height:18px}
+  .switch.on span{transform:translateX(18px)}
+  .tab2{padding:12px}
+
+  /* Champs : 16px = pas de zoom automatique iOS Safari au focus */
+  .inp,.sel,.ta,.search-wide input,.doc-viewer-search input{font-size:16px}
+  .inp,.sel{min-height:46px}
+
+  .top h1{font-size:16px}
+  .who{gap:0}
+  .card{padding:16px}
+  .stat{padding:14px}
+  .stat .ic{width:36px;height:36px;margin-bottom:12px}
+  .stat .v{font-size:21px}
+  .kard{padding:18px}
+  .kard .big{font-size:26px}
+  .hero h3{font-size:16px}
+  .hero .cta{width:100%;justify-content:center}
+  .docs{grid-template-columns:1fr}
+  .doc .thumb{height:104px}
+
+  /* Barres d'outils : les actions passent en pleine largeur */
+  .toolbar{gap:8px}
+  .toolbar > .btn,.toolbar > a.btn{flex:1 1 100%}
+  .toolbar > .iconbtn{flex:0 0 auto}
+  .sec-h{align-items:flex-start}
+
+  /* Modale → feuille ancrée en bas (patron mobile natif) */
+  .modal-backdrop{align-items:flex-end;padding:0}
+  .modal{
+    width:100%;max-width:none;
+    border-radius:22px 22px 0 0;
+    max-height:88dvh;
+    padding:20px 18px calc(20px + var(--safe-b));
+  }
+  .modal-actions{flex-direction:column-reverse}
+  .modal-actions .btn{width:100%}
+
+  .toast-host{left:12px;right:12px;bottom:calc(12px + var(--safe-b));max-width:none}
+
+  /* Lecteur PDF */
+  .doc-viewer-toolbar{gap:6px;padding:8px 10px;justify-content:center}
+  .doc-viewer-toolbar .iconbtn{width:38px;height:38px}
+  .doc-viewer-sep{display:none}
+  .doc-viewer-canvas-wrap{padding:10px;max-height:min(58dvh,440px)}
+  .doc-viewer-search{flex-wrap:wrap}
+
+  /* Listes / lignes d'opérations */
+  .doc-row,.task-row,.party-row{flex-wrap:wrap}
+  .row-end{width:100%;justify-content:flex-end}
+  .lrow{padding:10px 8px}
+  .lrow .lx{margin-left:0;width:100%;text-align:left;padding-left:54px;margin-top:-4px}
+
+  .kv{flex-direction:column;gap:2px;align-items:flex-start}
+  .kv b{font-size:13px}
+
+  /* Une pastille de tuile porte parfois un message qui compte — « Aucune
+     sauvegarde enregistrée » ne doit pas se terminer en points de
+     suspension. Sur mobile elle se met sur deux lignes plutôt que de
+     couper. */
+  .stat .tr .b{white-space:normal;text-align:left;line-height:1.3}
+  .stat .tr{align-items:flex-start}
+
+  .cats{gap:8px}
+  .cat{flex:1 1 calc(33.333% - 6px);min-width:0}
+  .filiale-switch .fchip{flex:1 1 100%}
+  .empty{padding:28px 14px}
+}
+
+/* ==================== 400px : petits téléphones ========================== */
+@media (max-width:400px){
+  :root{--gutter:12px}
+  .top h1{font-size:15px}
+  .who .av,.av{width:34px;height:34px;font-size:12px}
+  .cat{flex:1 1 calc(50% - 4px)}
+  .b{font-size:10.5px;padding:4px 8px}
+  .rail{width:min(86vw,260px)}
+  td::before{flex-basis:44%}
+}
+
+/* Quatre chiffres n'ont pas besoin de quatre pleines largeurs : on ne
+   repasse sur une colonne que lorsque deux tuiles deviendraient illisibles
+   (sous ~150 px de large chacune). */
+@media (max-width:340px){
+  .stats{grid-template-columns:1fr}
+}
+
+/* ============ Téléphone en paysage : on récupère de la hauteur ============ */
+@media (max-width:1024px) and (max-height:520px) and (orientation:landscape){
+  .top{padding-top:calc(8px + var(--safe-t));padding-bottom:6px}
+  .wrap{padding-top:10px}
+  .hero{padding:14px 16px}
+  .doc-viewer-canvas-wrap{max-height:none}
+}
+
+/* ============================ Confort global ============================= */
+@media (hover:none){
+  /* Sans souris, les effets de survol collent après le tap */
+  .btn:hover,.iconbtn:hover,.nav-i:hover,.fchip:hover,.mini-btn:hover{
+    border-color:var(--line);color:inherit;background:inherit;
+  }
+  .btn.pri:hover{background:var(--primary);border-color:var(--primary);color:#fff}
+  .nav-i.active:hover{background:var(--primary);color:#fff}
+  .nav-i .tip{display:none}
+  .lrow:hover,tr:hover td{background:transparent}
+}
+@media (max-width:1024px){
+  /* Sauf dans le tiroir, où la « tip » est le libellé */
+  .rail .nav-i .tip{display:block}
+}
+
+@media print{
+  .rail,.top,.rail-backdrop,.toast-host,.menu-btn,.search-toggle{display:none !important}
+  .body{margin-left:0}
+  .wrap{padding:0}
+  .card,.stat,.doc{box-shadow:none;break-inside:avoid}
+}
+
+/* ============================================================================
+   États de chargement — Skeleton (3 portails)
+   Injecté par app.js, avant le premier appel API, à la place du texte
+   « Chargement… » ou des fiches d'exemple figées dans le HTML : plus aucune
+   donnée fictive ne doit s'afficher à l'écran, même brièvement, avant les
+   données réelles. Les fonctions renderXxx() existantes écrasent ensuite ce
+   skeleton dès que la réponse du serveur arrive.
+   ========================================================================== */
+@keyframes skel-wave{
+  0%{background-position:-135% 0}
+  100%{background-position:135% 0}
+}
+.skel-block{
+  display:block;border-radius:8px;
+  background:linear-gradient(100deg,var(--line) 8%,var(--line-2) 24%,var(--line) 38%);
+  background-size:250% 100%;
+  animation:skel-wave 1.25s ease-in-out infinite;
+}
+.skel-line{height:11px;border-radius:6px;margin:7px 0}
+.skel-line.sm{height:9px}
+.skel-line.lg{height:15px;margin:2px 0 9px}
+.skel-avatar{border-radius:11px;flex-shrink:0}
+.skel-thumb{border-radius:14px;margin-bottom:13px}
+.skel-doc{background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;box-shadow:var(--shadow-sm)}
+tr.skel-row td{padding:16px}
+tr.skel-row .skel-line{margin:0}
+.skel-mini{display:flex;align-items:center;gap:12px;padding:13px 4px}
+.skel-mini .skel-line{flex:1;margin:0}
+@media (prefers-reduced-motion:reduce){
+  .skel-block{animation:none;background:var(--line-2);background-size:auto}
+}

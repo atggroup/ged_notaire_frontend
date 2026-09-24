@@ -2,12 +2,14 @@
 <html lang="fr" data-theme="collaborateur">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
 <title>GED Notaire — Scanner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/styles.css">
+<meta name="theme-color" content="#F6FBF8">
+<link rel="stylesheet" href="../assets/responsive.css">
 </head>
 <body data-theme="collaborateur" data-role="collaborateur">
   <div class="app">
@@ -34,14 +36,15 @@
         <div class="step" style="margin-bottom:18px"><div class="sd">1</div>
           <div><div class="lt" style="font-size:13px">Choisir la source</div>
           <div class="seg" style="margin-top:8px"><span class="opt on">PDF du scanner</span><span class="opt">Fichier existant</span><span class="opt">Import en lot</span></div></div></div>
-        <div class="field" style="margin:0 0 18px 42px"><label for="documentFile">PDF généré par le scanner</label><input class="inp" id="documentFile" data-upload-file type="file" accept="application/pdf" required><div class="ls" style="margin-top:5px">Numérisez avec le logiciel du scanner, enregistrez au format PDF, puis sélectionnez le fichier ici · 25 Mo maximum</div></div>
+        <div class="field" style="margin:0 0 18px 42px"><label for="documentFile">Fichier : PDF du scanner, image, Word (.docx) ou Excel (.xlsx)</label><input class="inp" id="documentFile" data-upload-file type="file" accept="application/pdf,image/jpeg,image/png,image/tiff,.docx,.xlsx" required><div class="ls" style="margin-top:5px">Numérisez avec le logiciel du scanner, enregistrez au format PDF, puis sélectionnez le fichier ici · 25 Mo maximum</div></div>
         <div class="step" style="margin-bottom:18px"><div class="sd">2</div>
           <div style="flex:1"><div class="lt" style="font-size:13px">Indexer le document</div>
           <div class="two" style="margin-top:10px">
             <div class="field"><label>Type de document</label><select class="sel" name="type_code" id="scanTypeCode"><option value="">Chargement du référentiel…</option></select></div>
-             <div class="field"><label>Dossier / affaire</label><input class="inp" name="dossier" placeholder="Ex. VEN-2026-00001" required><div class="hint">Sélectionnez une affaire existante : un même client peut avoir plusieurs dossiers.</div></div>
+             <div class="field"><label for="scanDossierInput">Dossier / affaire</label><div class="combo" id="scanDossierCombo"><input class="inp" id="scanDossierInput" type="text" autocomplete="off" placeholder="Rechercher un dossier (référence, client, objet)…" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-controls="scanDossierPanel" aria-autocomplete="list"><input type="hidden" name="dossier" id="scanDossierValue"><svg class="combo-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><div class="combo-panel" id="scanDossierPanel" role="listbox" hidden></div></div><div class="hint">Sélectionnez une affaire existante dans la liste : un même client peut avoir plusieurs dossiers.</div></div>
           </div>
           <div class="field"><label>Confidentialité</label><div class="seg" aria-disabled="true"><span class="opt on">Définie par le notaire</span></div><div class="hint">Le collaborateur ne peut ni ouvrir, ni restreindre, ni rendre confidentiel un dossier.</div></div>
+          <div class="field"><label for="scanValidUntil">Valide jusqu'au <span class="muted">(pièce datée : identité, certificat…)</span></label><input class="inp" type="date" name="valid_until" id="scanValidUntil"></div>
           </div></div>
         <div class="step"><div class="sd">3</div>
           <div><div class="lt" style="font-size:13px">Valider</div>
@@ -61,5 +64,6 @@
   </div>
   <script src="assets/config.js"></script>
   <script src="assets/app.js"></script>
+<script src="../assets/responsive.js"></script>
 </body>
 </html>

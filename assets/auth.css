@@ -39,15 +39,17 @@ img,svg,video{max-width:100%}
 .field label{display:block;font-size:11px;font-weight:600;letter-spacing:.01em;margin-bottom:6px;color:var(--muted)}
 .field .req{color:var(--danger);margin-left:2px}
 .inp-wrap{position:relative;display:flex;align-items:center}
-.inp-wrap svg{position:absolute;left:15px;color:var(--muted-2);pointer-events:none}
+.inp-wrap > svg{position:absolute;left:15px;color:var(--muted-2);pointer-events:none}
 .inp{width:100%;border:1.5px solid #E8E8F1;border-radius:var(--r-sm);padding:12px 14px;font-family:inherit;
      font-size:13.5px;color:var(--ink);background:#FCFCFD;outline:none;transition:border-color .2s,box-shadow .2s,background .2s}
-.inp-wrap svg + .inp{padding-left:40px}
+.inp-wrap > svg + .inp{padding-left:40px}
 .inp::placeholder{color:var(--muted-2)}
 .inp:focus{border-color:var(--role-accent,var(--accent));box-shadow:0 0 0 4px var(--role-soft,var(--accent-soft));background:#fff}
 .inp.err{border-color:var(--danger)}
-.toggle-eye{position:absolute;right:13px;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;display:flex;border-radius:8px}
+.toggle-eye{position:absolute;right:13px;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;display:flex;border-radius:8px;transition:color .15s ease-in-out}
 .toggle-eye:hover{color:var(--ink)}
+.toggle-eye:focus-visible{outline:2px solid var(--role-accent,var(--accent));outline-offset:2px}
+.toggle-eye svg{position:static;left:auto;pointer-events:none}
 .inp[type="password"]{padding-right:44px}
 .err-msg{font-size:11px;color:var(--danger);margin-top:6px;display:none}
 .field.invalid .err-msg{display:block}
@@ -65,8 +67,8 @@ img,svg,video{max-width:100%}
 .field-group > .field{margin:0;padding:11px 18px;border-bottom:1px solid var(--line)}
 .field-group > .field:last-child{border-bottom:none}
 .field-group > .field label{font-size:10.5px;margin-bottom:2px}
-.field-group > .field .inp-wrap svg{left:0}
-.field-group > .field .inp-wrap svg + .inp{padding-left:24px}
+.field-group > .field .inp-wrap > svg{left:0}
+.field-group > .field .inp-wrap > svg + .inp{padding-left:24px}
 .field-group > .field .inp{border:none;background:transparent;padding:2px 0;border-radius:0}
 .field-group > .field .inp:focus{box-shadow:none;background:transparent}
 .field-group > .field.invalid{background:var(--danger-soft)}
