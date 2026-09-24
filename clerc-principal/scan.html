@@ -35,8 +35,8 @@
         <div class="sec-h"><h2>Numériser un document</h2></div>
         <div class="step" style="margin-bottom:18px"><div class="sd">1</div>
           <div><div class="lt" style="font-size:13px">Choisir la source</div>
-          <div class="seg" style="margin-top:8px"><span class="opt on">PDF du scanner</span><span class="opt">Fichier existant</span><span class="opt">Import en lot</span></div></div></div>
-        <div class="field" style="margin:0 0 18px 42px"><label for="documentFile">Fichier : PDF du scanner, image, Word (.docx) ou Excel (.xlsx)</label><input class="inp" id="documentFile" data-upload-file type="file" accept="application/pdf,image/jpeg,image/png,image/tiff,.docx,.xlsx" required><div class="ls" style="margin-top:5px">Numérisez avec le logiciel du scanner, enregistrez au format PDF, puis sélectionnez le fichier ici · 25 Mo maximum</div></div>
+          <div class="seg" id="scanSource" role="radiogroup" aria-label="Source du document" style="margin-top:8px"><span class="opt on" data-source="scanner" role="radio" aria-checked="true" tabindex="0">PDF du scanner</span><span class="opt" data-source="fichier" role="radio" aria-checked="false" tabindex="-1">Fichier existant</span><span class="opt" data-source="lot" role="radio" aria-checked="false" tabindex="-1">Import en lot</span></div></div></div>
+        <div class="field" style="margin:0 0 18px 42px"><label for="documentFile" id="documentFileLabel">Fichier issu du scanner : PDF ou image</label><input class="inp" id="documentFile" data-upload-file type="file" accept="application/pdf,image/jpeg,image/png,image/tiff" required><div class="ls" id="documentFileHint" style="margin-top:5px">Numérisez avec le logiciel du scanner, enregistrez au format PDF, puis sélectionnez le fichier ici · 25 Mo maximum</div><div class="ls" id="documentFileCount" style="margin-top:5px;font-weight:600" hidden></div></div>
         <div class="step" style="margin-bottom:18px"><div class="sd">2</div>
           <div style="flex:1"><div class="lt" style="font-size:13px">Indexer le document</div>
           <div class="two" style="margin-top:10px">

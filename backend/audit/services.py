@@ -1,7 +1,7 @@
 import hashlib
 import json
 from datetime import timedelta
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 from .models import AuditLog
 
@@ -26,10 +26,30 @@ def log_system_event(action: str, target_type: str = "", target_id: str = "", re
     return _append(user, None, action, target_type, target_id, result, metadata)
 
 
+# Identifiant arbitraire mais fixe du verrou consultatif de la chaîne d'audit.
+_VERROU_CHAINE_AUDIT = 0x6A0D17
+
+
+def _verrou_chaine():
+    """Sérialise les écritures du journal pour toute la durée de la transaction.
+
+    `select_for_update()` sur la dernière ligne ne suffit pas sous PostgreSQL
+    (READ COMMITTED) : deux écrivains simultanés attendent le même verrou,
+    puis relisent tous deux la même « dernière » ligne et s'y accrochent —
+    la chaîne fourche (constaté au démarrage : deux exécutants à 15 ms
+    d'écart). Table vide, il n'y a même aucune ligne à verrouiller. Un verrou
+    consultatif transactionnel couvre les deux cas ; SQLite sérialise déjà
+    les écritures."""
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [_VERROU_CHAINE_AUDIT])
+
+
 def _append(user, ip, action, target_type, target_id, result, metadata) -> AuditLog:
     # A hash chain makes any removed or modified journal row detectable during
     # an integrity review.  The model still rejects normal updates/deletes.
     with transaction.atomic():
+        _verrou_chaine()
         previous = AuditLog.objects.select_for_update().order_by("-id").first()
         timestamp = timezone.now()
         payload = {
