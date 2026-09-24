@@ -143,3 +143,12 @@ def test_les_pages_portent_les_en_tetes_de_securite():
 def test_la_racine_ne_sert_pas_un_fichier_arbitraire():
     corps = resoudre("/un-chemin-sans-extension")
     assert "return 302 /login.html" in corps
+
+
+def test_django_est_resolu_a_chaque_requete_et_non_au_demarrage():
+    """Un `proxy_pass http://web:8000` littéral fige l'adresse du conteneur au
+    démarrage de nginx : après une mise à jour du service web, 502 jusqu'au
+    redémarrage de nginx. Il faut le résolveur Docker et une variable."""
+    conf = CONF.read_text(encoding="utf-8")
+    assert "resolver 127.0.0.11" in conf
+    assert "proxy_pass http://web:" not in conf, "adresse de Django figée au démarrage de nginx"

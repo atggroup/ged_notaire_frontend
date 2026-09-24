@@ -61,6 +61,7 @@ class Command(BaseCommand):
         signal.signal(signal.SIGTERM, self._arret)
         signal.signal(signal.SIGINT, self._arret)
         self.stdout.write(self.style.SUCCESS(f"Exécutant « {nom} » : {', '.join(s.name for s in choisis)}"))
+        self._attendre_migrations()
         while not self._stop:
             close_old_connections()
             self._battement(nom, groupes)
@@ -80,6 +81,34 @@ class Command(BaseCommand):
 
     def _arret(self, *_):
         self._stop = True
+
+    def _attendre_migrations(self):
+        """N'exécute aucun travail tant que la base n'est pas au schéma du code.
+
+        Au premier démarrage, les exécutants partaient pendant que le conteneur
+        web appliquait encore les migrations : chaque travail échouait sur
+        « relation … does not exist », levait une alerte et un e-mail. Même
+        chose lors d'une mise à jour qui ajoute une migration."""
+        from django.db import DatabaseError, connection
+        from django.db.migrations.executor import MigrationExecutor
+
+        depuis = time.monotonic()
+        prevenu = False
+        while not self._stop:
+            try:
+                close_old_connections()
+                executor = MigrationExecutor(connection)
+                en_attente = executor.migration_plan(executor.loader.graph.leaf_nodes())
+            except DatabaseError:
+                en_attente = True  # base pas encore joignable
+            if not en_attente:
+                if prevenu:
+                    self.stdout.write(f"Base à jour après {int(time.monotonic() - depuis)} s : démarrage des travaux.")
+                return
+            if not prevenu:
+                self.stdout.write("Migrations en attente : les travaux démarreront une fois la base à jour.")
+                prevenu = True
+            time.sleep(3)
 
     def _battement(self, nom, groupes):
         import os

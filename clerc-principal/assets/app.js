@@ -318,12 +318,13 @@
       "<h3>" + opts.title + "</h3>" +
       (opts.bodyHtml || "<p>" + (opts.text || "") + "</p>") +
       '<div class="modal-actions">' +
-      '<button type="button" class="btn" data-modal-cancel>Annuler</button>' +
+      (opts.cancel === false ? "" : '<button type="button" class="btn" data-modal-cancel>Annuler</button>') +
       '<button type="button" class="btn pri" data-modal-ok>' + (opts.ok || "Confirmer") + "</button>" +
       "</div></div>";
     document.body.appendChild(back);
     back.addEventListener("click", function (e) { if (e.target === back) closeModal(); });
-    back.querySelector("[data-modal-cancel]").addEventListener("click", closeModal);
+    var annuler = back.querySelector("[data-modal-cancel]");
+    if (annuler) annuler.addEventListener("click", closeModal);
     back.querySelector("[data-modal-ok]").addEventListener("click", function () {
       var payload = collectFields(back);
       Promise.resolve(opts.onOk && opts.onOk(payload)).then(closeModal).catch(function () {});
@@ -840,30 +841,104 @@
     loadQueue();
     populateReferentielSelects();
     initDossierCombo();
+    // Source : chaque choix change réellement les formats acceptés, le texte
+    // d'aide et, pour l'import en lot, autorise plusieurs fichiers à la fois.
+    var FORMATS_TOUS = "application/pdf,image/jpeg,image/png,image/tiff,.docx,.xlsx";
+    var SOURCES = {
+      scanner: { label: "Fichier issu du scanner : PDF ou image", accept: "application/pdf,image/jpeg,image/png,image/tiff", multiple: false,
+        hint: "Numérisez avec le logiciel du scanner, enregistrez au format PDF, puis sélectionnez le fichier ici · 25 Mo maximum" },
+      fichier: { label: "Fichier existant : PDF, image, Word (.docx) ou Excel (.xlsx)", accept: FORMATS_TOUS, multiple: false,
+        hint: "Document déjà présent sur l'ordinateur (reçu par e-mail, clé USB, dossier partagé…) · 25 Mo maximum" },
+      lot: { label: "Plusieurs fichiers : PDF, image, Word (.docx) ou Excel (.xlsx)", accept: FORMATS_TOUS, multiple: true,
+        hint: "Sélectionnez plusieurs fichiers d'un coup (Ctrl + clic ou Maj + clic). Ils reçoivent tous le même type, le même dossier et le même niveau · 25 Mo par fichier, " + 50 + " fichiers au plus" }
+    };
+    var LOT_MAX = 50;
+    var source = "scanner";
+    var fichierInput = document.querySelector("[data-upload-file]");
+    var compteur = document.getElementById("documentFileCount");
+    function majCompteur() {
+      if (!compteur || !fichierInput) return;
+      var n = fichierInput.files ? fichierInput.files.length : 0;
+      compteur.hidden = !(source === "lot" && n);
+      compteur.textContent = n + (n > 1 ? " fichiers sélectionnés" : " fichier sélectionné") + (n > LOT_MAX ? " \u2014 maximum " + LOT_MAX + " par envoi" : "");
+      compteur.style.color = n > LOT_MAX ? "var(--danger)" : "";
+    }
+    function choisirSource(cle) {
+      var s = SOURCES[cle];
+      if (!s || !fichierInput) return;
+      source = cle;
+      fichierInput.accept = s.accept;
+      fichierInput.multiple = s.multiple;
+      fichierInput.value = "";
+      var label = document.getElementById("documentFileLabel");
+      var hint = document.getElementById("documentFileHint");
+      if (label) label.textContent = s.label;
+      if (hint) hint.textContent = s.hint;
+      document.querySelectorAll("#scanSource .opt").forEach(function (o) {
+        var actif = o.getAttribute("data-source") === cle;
+        o.classList.toggle("on", actif);
+        o.setAttribute("aria-checked", actif ? "true" : "false");
+        o.tabIndex = actif ? 0 : -1;
+      });
+      majCompteur();
+    }
+    var segSource = document.getElementById("scanSource");
+    if (segSource) {
+      segSource.addEventListener("click", function (e) {
+        var opt = e.target.closest("[data-source]");
+        if (opt) choisirSource(opt.getAttribute("data-source"));
+      });
+      segSource.addEventListener("keydown", function (e) {
+        var opt = e.target.closest("[data-source]");
+        if (!opt) return;
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); choisirSource(opt.getAttribute("data-source")); }
+      });
+    }
+    if (fichierInput) fichierInput.addEventListener("change", majCompteur);
     var btn = Array.from(document.querySelectorAll("button.btn.pri")).find(function (b) { return /contrôle/i.test(b.textContent); });
     if (btn) {
       btn.addEventListener("click", function (e) {
         e.preventDefault();
         var data = collectFields();
-        var input = document.querySelector("[data-upload-file]");
-        var file = input && input.files && input.files[0];
-        if (!file) return toast("Choisissez le fichier à archiver.", "err");
+        var input = fichierInput;
+        var fichiers = input && input.files ? Array.from(input.files) : [];
+        var file = fichiers[0];
+        if (!file) return toast(source === "lot" ? "Choisissez les fichiers à archiver." : "Choisissez le fichier à archiver.", "err");
+        if (fichiers.length > LOT_MAX) return toast("Maximum " + LOT_MAX + " fichiers par envoi : répartissez l'import en plusieurs fois.", "err");
         if (!data.type_code) return toast("Choisissez un type de document dans le référentiel.", "err");
         if (!data.dossier) return toast("Sélectionnez le dossier existant auquel rattacher ce document.", "err");
         if (/confidentiel/i.test(data.niveau_de_confidentialite || "") && !can("validateActs")) {
           return deny("Seul le notaire archive un acte confidentiel.");
         }
-        var form = new FormData();
-        form.append("fichier", file);
-        form.append("type_code", data.type_code);
-        form.append("niveau", data.niveau_de_confidentialite || "Standard");
-        if (data.dossier) form.append("dossier", data.dossier);
-        // Une date de validité permet à la GED d'alerter avant expiration.
-        if (data.valid_until) form.append("valid_until", data.valid_until);
+        function envoyer(f) {
+          var form = new FormData();
+          form.append("fichier", f);
+          form.append("type_code", data.type_code);
+          form.append("niveau", data.niveau_de_confidentialite || "Standard");
+          if (data.dossier) form.append("dossier", data.dossier);
+          // Une date de validité permet à la GED d'alerter avant expiration.
+          if (data.valid_until) form.append("valid_until", data.valid_until);
+          return apiMultipart("/documents/upload", form);
+        }
+        var libelleBouton = btn.innerHTML;
         btn.disabled = true;
-        apiMultipart("/documents/upload", form).then(function (doc) {
-          toast("Document envoyé au contrôle : " + doc.reference, "ok");
-          (doc.warnings || []).forEach(function (w, i) { setTimeout(function () { toast(w, "ok"); }, 900 * (i + 1)); });
+        // Envoi un par un : l'antivirus et le chiffrement traitent chaque
+        // fichier, et un échec n'empêche pas les suivants.
+        var reussis = [], echecs = [];
+        var chaine = fichiers.reduce(function (p, f, i) {
+          return p.then(function () {
+            if (fichiers.length > 1) btn.textContent = "Envoi " + (i + 1) + " / " + fichiers.length + "\u2026";
+            return envoyer(f).then(function (doc) { reussis.push(doc); }, function () { echecs.push(f.name); });
+          });
+        }, Promise.resolve());
+        chaine.then(function () {
+          if (!reussis.length) throw new Error("aucun");
+          if (fichiers.length === 1) {
+            toast("Document envoyé au contrôle : " + reussis[0].reference, "ok");
+            (reussis[0].warnings || []).forEach(function (w, i) { setTimeout(function () { toast(w, "ok"); }, 900 * (i + 1)); });
+          } else {
+            toast(reussis.length + " document(s) envoyé(s) au contrôle" + (echecs.length ? " \u00b7 " + echecs.length + " refusé(s) : " + echecs.join(", ") : "."), echecs.length ? "err" : "ok");
+          }
           var validite = document.getElementById("scanValidUntil");
           if (validite) validite.value = "";
           if (input) input.value = "";
@@ -871,9 +946,11 @@
           var dossierValue = document.getElementById("scanDossierValue");
           if (dossierInput) dossierInput.value = "";
           if (dossierValue) dossierValue.value = "";
+          majCompteur();
           loadQueue();
-        }).finally(function () {
+        }).catch(function () {}).finally(function () {
           btn.disabled = false;
+          btn.innerHTML = libelleBouton;
         });
       });
     }
@@ -1180,6 +1257,78 @@
       if (!bouts.length) return "";
       return '<div class="ls" style="margin-top:3px;opacity:.85">' + bouts.join(" \u00b7 ") + "</div>";
     }
+    // Libellés français des actions : le journal stocke des codes techniques
+    // (« document_searched ») qui ne parlent pas à l'étude.
+    var AUDIT_LIBELLES = {
+      login: "Connexion", login_mfa: "Connexion validée (double authentification)", login_failed: "Échec de connexion",
+      login_locked: "Compte verrouillé après échecs", logout: "Déconnexion", mfa_challenge_sent: "Code de connexion demandé",
+      otp_sent_login_mfa: "Code de connexion envoyé par e-mail", password_changed: "Mot de passe modifié",
+      password_reset_requested: "Réinitialisation du mot de passe demandée", password_reset_completed: "Mot de passe réinitialisé",
+      totp_enabled: "Application d'authentification activée", totp_disabled: "Application d'authentification désactivée",
+      totp_setup_started: "Activation de l'application d'authentification commencée", totp_confirm_failed: "Code d'application refusé",
+      document_uploaded: "Document déposé", document_viewed: "Document consulté", document_searched: "Recherche de documents",
+      document_validated: "Acte validé", document_archived: "Document archivé", document_exported: "Document exporté",
+      document_new_version: "Nouvelle version déposée", document_quality_checked: "Contrôle qualité effectué",
+      document_trashed: "Document mis à la corbeille", document_destroyed: "Document détruit",
+      document_destruction_authorized: "Destruction autorisée", document_restriction_updated: "Confidentialité du document modifiée",
+      document_ocr_processed: "Texte extrait (OCR)", document_ocr_failed: "Échec de l'extraction du texte (OCR)",
+      document_upload_blocked_virus: "Dépôt bloqué : virus détecté", document_upload_scan_unavailable: "Dépôt refusé : antivirus indisponible",
+      document_expiry_notified: "Alerte d'expiration de pièce", document_reencrypted: "Document rechiffré",
+      dossier_created: "Dossier créé", dossier_viewed: "Dossier consulté", dossier_exported: "Dossier exporté",
+      dossier_status_updated: "Statut du dossier modifié", dossier_confidentiality_updated: "Confidentialité du dossier modifiée",
+      dossier_assignment_created: "Collaborateur affecté au dossier", dossier_assignment_removed: "Affectation retirée",
+      dossier_checklist_item_completed: "Pièce de checklist reçue", dossier_checklist_item_created: "Pièce ajoutée à la checklist",
+      dossier_checklist_complete: "Checklist du dossier complète", missing_documents_detected: "Pièces manquantes détectées",
+      client_created: "Client créé", task_created: "Tâche créée", task_updated: "Tâche modifiée",
+      task_reminder_sent: "Rappel de tâche envoyé", task_overdue_notified: "Tâche en retard signalée", task_escalated: "Tâche en retard remontée au notaire",
+      notification_read: "Notification lue", permission_granted: "Droit accordé", permission_revoked: "Droit retiré",
+      access_requested: "Demande d'accès", access_request_accepted: "Demande d'accès acceptée", access_request_refused: "Demande d'accès refusée",
+      user_role_changed: "Rôle d'utilisateur modifié", settings_updated: "Paramètres modifiés",
+      backup_run_completed: "Sauvegarde réussie", backup_run_failed: "Échec de sauvegarde", backup_stale_alert: "Alerte : sauvegarde en retard",
+      backup_restore_drill: "Exercice de restauration", backup_restored: "Sauvegarde restaurée",
+      encryption_key_generated: "Clé de chiffrement générée", encryption_key_activated: "Clé de chiffrement activée",
+      encryption_keys_recovery_exported: "Paquet de récupération des clés exporté",
+      security_alert_raised: "Alerte de sécurité levée", security_alert_handled: "Alerte de sécurité traitée",
+      audit_export: "Journal exporté", audit_integrity_checked: "Intégrité du journal vérifiée", job_requested: "Travail automatique lancé à la main"
+    };
+    function auditLibelle(action) {
+      action = String(action || "");
+      if (AUDIT_LIBELLES[action]) return AUDIT_LIBELLES[action];
+      if (action.indexOf("job_") === 0) return "Travail automatique : " + action.slice(4).replace(/_/g, " ");
+      return action.replace(/_/g, " ");
+    }
+    function auditHorodatage(value, secondes) {
+      var d = new Date(value);
+      if (!value || isNaN(d)) return "";
+      var heure = { hour: "2-digit", minute: "2-digit" };
+      if (secondes) heure.second = "2-digit";
+      return d.toLocaleDateString("fr-FR", { day: "2-digit", month: secondes ? "long" : "short", year: "numeric" }) + " · " + d.toLocaleTimeString("fr-FR", heure);
+    }
+    function auditValeur(v) {
+      if (v === null || v === undefined || v === "") return "—";
+      if (typeof v === "object") return JSON.stringify(v);
+      return String(v);
+    }
+    function auditFiche(log) {
+      if (!log) return;
+      var echec = log.result && log.result !== "success";
+      var ligne = function (titre, valeur, mono) {
+        return '<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line,#eee)"><div class="ls" style="width:130px;flex-shrink:0">' + titre + '</div><div style="font-size:13px;word-break:break-all' + (mono ? ";font-family:ui-monospace,Consolas,monospace;font-size:12px" : "") + '">' + escapeHtml(valeur) + "</div></div>";
+      };
+      var details = log.details && typeof log.details === "object" ? Object.keys(log.details) : [];
+      var corps =
+        ligne("Date et heure", auditHorodatage(log.timestamp, true)) +
+        ligne("Auteur", log.user || "Système") +
+        ligne("Action", auditLibelle(log.action)) +
+        ligne("Code technique", log.action || "—", true) +
+        ligne("Objet concerné", [log.targetType, log.targetId].filter(Boolean).join(" · ") || "—") +
+        ligne("Résultat", echec ? "Échec (" + log.result + ")" : "Réussi") +
+        ligne("Adresse IP", log.ip || "—", true) +
+        details.map(function (k) { return ligne(escapeHtml(k.replace(/_/g, " ")), auditValeur(log.details[k])); }).join("") +
+        (log.entryHash ? ligne("Empreinte", log.entryHash, true) : "") +
+        '<div class="ls" style="margin-top:10px">Cette entrée est scellée dans la chaîne d’intégrité du journal : elle ne peut être ni modifiée ni supprimée.</div>';
+      openModal({ title: "Détail de l’événement", ok: "Fermer", cancel: false, bodyHtml: '<div style="max-height:60vh;overflow:auto">' + corps + "</div>" });
+    }
     if (!cfg.useMock) api("GET", "/audit?scope=" + (cfg.role === "admin" ? "cabinet" : "me")).then(function (data) {
       // Le journal renvoie { total, returned, entries } ; on accepte aussi un
       // tableau nu pour ne dépendre d'aucun ordre de déploiement.
@@ -1194,10 +1343,19 @@
       var reste = total > logs.length
         ? '<div class="lrow"><div><div class="ls">' + logs.length + " entr\u00e9e(s) affich\u00e9e(s) sur " + total + ". L'export CSV contient le journal complet et le d\u00e9tail de chaque \u00e9v\u00e9nement.</div></div></div>"
         : "";
-      card.innerHTML = logs.map(function (log) {
+      card.innerHTML = logs.map(function (log, i) {
         var echec = log.result && log.result !== "success";
-        return '<div class="lrow"><span class="li" style="background:var(--' + (echec ? "danger-soft);color:var(--danger" : "primary-soft);color:var(--primary") + ')">' + (echec ? "\u2717" : "\u25f7") + '</span><div><div class="lt">' + escapeHtml(log.user) + '</div><div class="ls">' + escapeHtml(log.action.replace(/_/g, " ")) + (log.targetId ? " \u2014 " + escapeHtml(log.targetId) : "") + "</div>" + auditDetails(log.details) + '</div><div class="lx"><span class="ls">' + docDate(log.timestamp) + "</span></div></div>";
+        return '<div class="lrow audit-row" data-audit-index="' + i + '" role="button" tabindex="0" aria-label="Voir le détail de l\u2019événement" style="cursor:pointer"><span class="li" style="background:var(--' + (echec ? "danger-soft);color:var(--danger" : "primary-soft);color:var(--primary") + ')">' + (echec ? "\u2717" : "\u25f7") + '</span><div><div class="lt">' + escapeHtml(log.user) + '</div><div class="ls">' + escapeHtml(auditLibelle(log.action)) + (log.targetId ? " \u2014 " + escapeHtml(log.targetId) : "") + "</div>" + auditDetails(log.details) + '</div><div class="lx"><span class="ls">' + escapeHtml(auditHorodatage(log.timestamp)) + "</span></div></div>";
       }).join("") + reste;
+      function ouvrir(e) {
+        var ligne = e.target.closest("[data-audit-index]");
+        if (!ligne) return;
+        if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        auditFiche(logs[Number(ligne.getAttribute("data-audit-index"))]);
+      }
+      card.addEventListener("click", ouvrir);
+      card.addEventListener("keydown", ouvrir);
     });
     var exportBtn = Array.from(document.querySelectorAll("a.btn,.btn")).find(function (b) { return /export csv/i.test(b.textContent); });
     if (exportBtn) {
