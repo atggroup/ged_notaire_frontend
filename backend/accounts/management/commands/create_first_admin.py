@@ -14,6 +14,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--email", help="Adresse du notaire (sinon INITIAL_ADMIN_EMAIL).")
+        parser.add_argument("--prenom", help="Prénom ou titre affiché avant le nom (sinon INITIAL_ADMIN_PRENOM).")
+        parser.add_argument("--nom", help="Nom affiché du notaire (sinon INITIAL_ADMIN_NOM).")
+        parser.add_argument("--cabinet", help="Nom du cabinet (sinon CABINET_NAME).")
 
     def handle(self, *args, **options):
         if User.objects.exists():
@@ -31,9 +34,20 @@ class Command(BaseCommand):
             raise CommandError("INITIAL_ADMIN_PASSWORD refusé : " + " ".join(exc.messages))
         # Rôle notaire, mais PAS superutilisateur Django : l'admin Django
         # contourne le second facteur et le journal d'audit de la GED.
+        # Nom réel du notaire dès la création : sans lui, tout l'applicatif
+        # (en-tête, journal d'audit, e-mails) affichait « Notaire Administrateur ».
+        prenom = (options.get("prenom") or os.getenv("INITIAL_ADMIN_PRENOM", "")).strip() or "Notaire"
+        nom = (options.get("nom") or os.getenv("INITIAL_ADMIN_NOM", "")).strip() or "Administrateur"
         user = User.objects.create_user(email=email, password=password, role=User.Role.ADMIN,
-                                        first_name="Notaire", last_name="Administrateur")
-        self.stdout.write(self.style.SUCCESS(f"Compte notaire créé : {user.email}"))
+                                        first_name=prenom[:150], last_name=nom[:150])
+        self.stdout.write(self.style.SUCCESS(f"Compte notaire créé : {user.email} ({user.display_name})"))
+        cabinet = (options.get("cabinet") or os.getenv("CABINET_NAME", "")).strip()
+        if cabinet:
+            from settings_app.models import CabinetSettings
+            reglages, _ = CabinetSettings.objects.get_or_create(pk=1)
+            reglages.cabinet_name = cabinet[:255]
+            reglages.save(update_fields=["cabinet_name", "updated_at"])
+            self.stdout.write(self.style.SUCCESS(f"Nom du cabinet : {reglages.cabinet_name}"))
         if fourni:
             self.stdout.write(self.style.WARNING(
                 "Retirez maintenant INITIAL_ADMIN_PASSWORD de .env.prod et mettez CREATE_INITIAL_ADMIN=false."))
