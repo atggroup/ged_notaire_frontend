@@ -340,3 +340,91 @@ tr.skel-row .skel-line{margin:0}
 @media (prefers-reduced-motion:reduce){
   .skel-block{animation:none;background:var(--line-2);background-size:auto}
 }
+
+/* ==========================================================================
+   Passe 2 — confort téléphone et tablette, mesuré page par page (42 pages,
+   360 / 768 / 1024 px). Aucune page ne débordait ; ces règles corrigent ce
+   qui restait inconfortable : textes minuscules, cibles trop petites,
+   frise qui défilait de côté, grilles orphelines.
+   ========================================================================== */
+
+/* Texte d'aide placé sous un champ (.ls hors d'une liste .lrow) : sans règle,
+   il prenait la taille du corps et s'affichait en très gros, même sur
+   ordinateur (Scanner : « Numérisez avec le logiciel du scanner… »). */
+.field .ls{font-size:12px;color:var(--muted);line-height:1.45;font-weight:400}
+
+/* Décors de l'accueil : derrière le texte, jamais par-dessus. */
+.hero > :not(.blob){position:relative;z-index:1}
+
+/* Valeur longue dans une tuile (date de dernière sauvegarde). */
+.stat .v{overflow-wrap:anywhere}
+
+/* Chiffres clés de la fiche dossier : 3 tuiles = 3 colonnes. En 2 colonnes
+   (tablette) la 3e restait orpheline ; en 1 colonne (téléphone) elles
+   occupaient un écran entier. */
+@media (max-width:980px){
+  .kpi-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+@media (max-width:560px){
+  .kpi-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .mini-kpi{padding:12px 10px}
+  .mini-kpi .num{font-size:20px}
+  .mini-kpi .lab{font-size:11px;line-height:1.3}
+
+  /* Accueil : une date en 24px tenait sur trois lignes. */
+  .stat .v{font-size:19px;line-height:1.2}
+  .hero .blob{opacity:.28}
+
+  /* Fiche dossier : actions sur une ligne, libellés jamais coupés. */
+  .case-actions{width:100%;flex-wrap:wrap}
+  .case-actions .mini-btn{flex:1 1 auto;white-space:nowrap;padding:10px 12px}
+
+  /* Frise d'avancement verticale au lieu d'un défilement latéral. */
+  .workflow-line{min-width:0;flex-direction:column;align-items:stretch}
+  .wf-step{display:flex;align-items:center;gap:12px;text-align:left;padding:6px 0}
+  .wf-dot{margin:0;flex-shrink:0}
+  .wf-label{margin-top:0;font-size:13px}
+  .wf-step:not(:last-child):after{top:38px;bottom:-6px;left:15px;right:auto;width:2px;height:auto}
+
+  /* Titres de tâches, pièces, parties : complets, sur plusieurs lignes. */
+  .row-main strong{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35}
+
+  /* Clients : nom et coordonnées en pleine largeur, dossiers en dessous. */
+  .client-card{flex-wrap:wrap;align-items:flex-start}
+  .client-card > div:last-child{width:100%;padding-left:58px}
+
+  /* Scanner : le champ fichier n'a plus besoin du retrait de 42px. */
+  .step + .field[style]{margin-left:0 !important}
+  .step > div{min-width:0}
+
+  /* Documents : catégories en bandeau défilant (une ligne) au lieu d'une
+     grille qui laissait une colonne vide à côté du bouton filtre. */
+  .toolbar .cats{flex:1 1 calc(100% - 60px) !important;min-width:0;flex-wrap:nowrap;overflow-x:auto;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:2px 2px 6px;margin:0 -2px}
+  .toolbar .cats::-webkit-scrollbar{display:none}
+  .toolbar .cats .cat{flex:0 0 auto;flex-direction:row;min-width:0;padding:10px 14px;gap:8px}
+  .toolbar .cats .cat .ci{width:28px;height:28px}
+
+  /* Cibles tactiles restées sous 36px. */
+  .doc .fav,.doc .lock-tag{width:38px;height:38px}
+  .sec-h .link{padding:10px 6px;margin:-10px -6px}
+  .search-wide{padding:4px 13px}
+  .search-wide input{min-height:40px}
+  .doc-row .row-end .mini-btn,.task-row .row-end .mini-btn{min-width:88px}
+
+  /* Plancher de lisibilité : rien sous 11px sur téléphone. */
+  .chip,.eyebrow,.kvbox span,.row-main span,.count,.panel-title .count,
+  .doc .tag,.b{font-size:11px}
+  td::before{font-size:11px}
+  .row-main span,.kvbox span,.doc .meta,.lrow .ls{font-size:11.5px}
+}
+/* Onglets de la fiche dossier : sans cela, ils se tassaient et leurs
+   libellés se chevauchaient (« DocumentsChecklist… ») au lieu de défiler. */
+.tab2{flex-shrink:0}
+/* Pastille de confidentialité des vignettes : 9.5px était illisible. */
+.lvl{font-size:11px;padding:3px 8px}
+/* Tuile « Dernière sauvegarde » : une date, pas un nombre — plus longue que
+   les autres valeurs, elle reste sur une ligne dans une tuile étroite. */
+.stat .v#statBackup{font-size:20px;line-height:1.25}
+@media (max-width:560px){.stat .v#statBackup{font-size:17px}}

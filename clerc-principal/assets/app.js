@@ -783,7 +783,7 @@
       panel.innerHTML = list.map(function (item, i) {
         return '<div class="combo-opt" role="option" id="scanDossierOpt' + i + '" data-ref="' + escapeHtml(item.reference) + '" aria-selected="' + (hidden.value === item.reference ? "true" : "false") + '">' +
           '<div class="combo-opt-main"><span class="combo-opt-ref">' + escapeHtml(item.reference) + '</span><span class="combo-opt-client">' + escapeHtml(item.client || "Sans client") + '</span></div>' +
-          '<div class="combo-opt-meta"><span>' + escapeHtml(item.objet || "—") + '</span><span class="b ' + statusClass(item) + '">' + escapeHtml(item.statutLabel || item.statut || "—") + '</span></div>' +
+          '<div class="combo-opt-meta"><span>' + escapeHtml(item.objet || "—") + '</span><span class="b ' + statusClass(item) + '">' + escapeHtml(statutDossier(item)) + '</span></div>' +
           '</div>';
       }).join("");
     }
@@ -1004,10 +1004,15 @@
     }
   }
 
+  // Codes de statut renvoyés par l'API → libellés lisibles. La liste des
+  // dossiers affichait « en_instruction » tel quel.
+  var STATUTS_DOSSIER = { ouvert: "Ouvert", en_cours: "En cours", en_instruction: "En instruction", en_attente_pieces: "En attente de pièces",
+    en_attente: "En attente", pret_pour_acte: "Prêt pour acte", "finalisé": "Finalisé", clos: "Clos", "clôturé": "Clôturé", cloture: "Clôturé", "archivé": "Archivé" };
+  function statutDossier(item) { return item.statutLabel || STATUTS_DOSSIER[item.statut] || item.statut || "—"; }
   function dossierRow(item) {
     return '<tr><td class="tname"><span class="fic" style="background:var(--primary-soft);color:var(--primary-600)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>' + escapeHtml(item.client || item.nom || "Sans client") + '</td>' +
-      '<td>' + escapeHtml(item.objet || "—") + '</td><td>' + escapeHtml(item.notaire || "—") + '</td><td>' + escapeHtml(item.documentsCount != null ? item.documentsCount + " documents" : "—") + '</td>' +
-      '<td><span class="b ' + (item.statut === "cloture" || item.statut === "clôturé" ? "grey" : (item.statut === "en_attente" ? "warn" : "green")) + '">' + escapeHtml(item.statutLabel || item.statut || "—") + '</span></td>' +
+      '<td>' + escapeHtml(item.objet || "—") + '</td><td>' + escapeHtml(item.notaire || "—") + '</td><td>' + escapeHtml(item.documentsCount != null ? item.documentsCount + (item.documentsCount > 1 ? " documents" : " document") : "—") + '</td>' +
+      '<td><span class="b ' + (item.statut === "cloture" || item.statut === "clôturé" ? "grey" : (item.statut === "en_attente" ? "warn" : "green")) + '">' + escapeHtml(statutDossier(item)) + '</span></td>' +
       '<td><a class="iconbtn" style="width:34px;height:34px" href="dossier-detail.html?ref=' + encodeURIComponent(item.reference) + '"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/></svg></a></td></tr>';
   }
   function renderDossiers(items) {
