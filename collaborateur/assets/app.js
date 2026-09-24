@@ -811,7 +811,35 @@
       if (opts[activeIndex]) opts[activeIndex].scrollIntoView({ block: "nearest" });
     }
     panel.innerHTML = '<div class="combo-empty">Chargement des dossiers…</div>';
-    api("GET", "/dossiers").then(function (list) { items = Array.isArray(list) ? list : []; }).catch(function () { items = []; });
+    // Le texte visible et la valeur envoyée pouvaient diverger : Chrome
+    // restaure le texte d'un champ au rechargement mais pas l'état interne,
+    // et le lien « ajouter un document » d'une fiche dossier passe
+    // ?dossier=REF sans que la page ne le lise. La page affichait alors un
+    // dossier tout en refusant l'envoi (« Sélectionnez le dossier… »).
+    function trouver(texte) {
+      texte = (texte || "").trim().toLowerCase();
+      if (!texte) return null;
+      return items.find(function (item) {
+        var ref = (item.reference || "").toLowerCase();
+        return ref === texte || label(item).toLowerCase() === texte || texte.indexOf(ref + " \u2014 ") === 0;
+      }) || null;
+    }
+    function resoudre() {
+      if (hidden.value) return;
+      var found = trouver(input.value);
+      if (found) selectItem(found.reference);
+    }
+    var pret = api("GET", "/dossiers").then(function (list) { items = Array.isArray(list) ? list : []; }).catch(function () { items = []; }).then(function () {
+      var demande = params.get("dossier");
+      if (demande && !input.value) {
+        var found = trouver(demande);
+        if (found) selectItem(found.reference);
+        else toast("Le dossier " + demande + " n'est pas accessible ou n'existe pas.", "err");
+      }
+      resoudre();
+    });
+    wrap.__resoudre = function () { return pret.then(function () { resoudre(); return hidden.value; }); };
+    input.addEventListener("blur", function () { setTimeout(resoudre, 150); });
     input.addEventListener("focus", function () { updateList(); openPanel(); });
     input.addEventListener("click", function () { updateList(); openPanel(); });
     input.addEventListener("input", function () { hidden.value = ""; updateList(); openPanel(); });
@@ -909,7 +937,27 @@
         if (!file) return toast(source === "lot" ? "Choisissez les fichiers à archiver." : "Choisissez le fichier à archiver.", "err");
         if (fichiers.length > LOT_MAX) return toast("Maximum " + LOT_MAX + " fichiers par envoi : répartissez l'import en plusieurs fois.", "err");
         if (!data.type_code) return toast("Choisissez un type de document dans le référentiel.", "err");
-        if (!data.dossier) return toast("Sélectionnez le dossier existant auquel rattacher ce document.", "err");
+        // La référence choisie vit dans le champ caché : collectFields() ne
+        // lit que les champs visibles et renvoyait le texte affiché sous une
+        // autre clé, si bien que `data.dossier` restait toujours vide.
+        var champDossier = document.getElementById("scanDossierValue");
+        data.dossier = champDossier ? champDossier.value : "";
+        var apresResolution = btn.__apresResolution;
+        btn.__apresResolution = false;
+        if (!data.dossier) {
+          // Dernier recours, UNE seule fois : le texte affiché correspond
+          // peut-être à un dossier existant sans que la valeur ait été posée.
+          var combo = document.getElementById("scanDossierCombo");
+          if (!apresResolution && combo && combo.__resoudre) {
+            combo.__resoudre().then(function (ref) {
+              if (!ref) return toast("Sélectionnez le dossier existant auquel rattacher ce document.", "err");
+              btn.__apresResolution = true;
+              btn.click();
+            });
+            return;
+          }
+          return toast("Sélectionnez le dossier existant auquel rattacher ce document.", "err");
+        }
         if (/confidentiel/i.test(data.niveau_de_confidentialite || "") && !can("validateActs")) {
           return deny("Seul le notaire archive un acte confidentiel.");
         }
